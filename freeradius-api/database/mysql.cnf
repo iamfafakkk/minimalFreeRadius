@@ -1,0 +1,89 @@
+[mysqld]
+# Basic Settings
+user = mysql
+default-storage-engine = InnoDB
+socket = /var/run/mysqld/mysqld.sock
+pid-file = /var/run/mysqld/mysqld.pid
+
+# Connection Settings
+port = 3306
+bind-address = 0.0.0.0
+max_connections = 200
+max_connect_errors = 1000000
+
+# Character Set
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci
+init_connect = 'SET NAMES utf8mb4'
+
+# InnoDB Settings
+innodb_buffer_pool_size = 256M
+innodb_log_file_size = 64M
+innodb_flush_log_at_trx_commit = 1
+innodb_lock_wait_timeout = 50
+innodb_file_per_table = 1
+
+# Query Cache (disabled in MySQL 8.0+)
+# query_cache_type = 1
+# query_cache_size = 32M
+# query_cache_limit = 2M
+
+# Logging
+general_log = 0
+general_log_file = /var/log/mysql/mysql.log
+log_error = /var/log/mysql/error.log
+slow_query_log = 1
+slow_query_log_file = /var/log/mysql/slow.log
+long_query_time = 2
+log_queries_not_using_indexes = 1
+
+# Binary Logging
+log_bin = /var/log/mysql/mysql-bin.log
+binlog_format = ROW
+expire_logs_days = 7
+max_binlog_size = 100M
+
+# Security
+local_infile = 0
+
+# Performance
+tmp_table_size = 32M
+max_heap_table_size = 32M
+thread_cache_size = 50
+table_open_cache = 400
+open_files_limit = 65535
+
+# Timeout Settings
+wait_timeout = 28800
+interactive_timeout = 28800
+connect_timeout = 10
+
+# Buffer Settings
+key_buffer_size = 32M
+read_buffer_size = 2M
+read_rnd_buffer_size = 16M
+sort_buffer_size = 8M
+join_buffer_size = 8M
+
+# MyISAM Settings (if needed)
+myisam_sort_buffer_size = 128M
+myisam_max_sort_file_size = 10G
+myisam_repair_threads = 1
+
+[mysql]
+default-character-set = utf8mb4
+
+[client]
+default-character-set = utf8mb4
+port = 3306
+socket = /var/run/mysqld/mysqld.sock
+
+[mysqldump]
+quick
+quote-names
+max_allowed_packet = 16M
+default-character-set = utf8mb4
+
+[mysql_safe]
+socket = /var/run/mysqld/mysqld.sock
+nice = 0
