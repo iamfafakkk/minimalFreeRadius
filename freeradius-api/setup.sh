@@ -482,7 +482,8 @@ start_application() {
     if command_exists systemctl; then
         read -p "Do you want to run the API as a systemd service? (Y/n): " -n 1 -r
         echo
-        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        # If user just presses Enter, default to Y
+        if [[ -z "$REPLY" ]] || [[ ! $REPLY =~ ^[Nn]$ ]]; then
             create_systemd_service
             if [ $? -eq 0 ]; then
                 sudo systemctl start freeradius-api.service
@@ -581,6 +582,24 @@ show_usage() {
     echo "  $0 --systemd-only    # Setup systemd service only"
     echo "  $0 --remove-systemd  # Remove systemd service"
     echo "  $0 --no-start        # Setup without starting"
+}
+
+# Function to start application in fallback mode (PM2 or development)
+start_application_fallback() {
+    # Fallback to PM2 or development mode
+    if command_exists pm2; then
+        print_status "Starting with PM2..."
+        pm2 start server.js --name freeradius-api
+        print_success "Application started with PM2"
+        print_status "Use 'pm2 logs freeradius-api' to view logs"
+        print_status "Use 'pm2 stop freeradius-api' to stop the application"
+        return 0
+    else
+        print_status "PM2 not found. Starting in development mode..."
+        print_status "Use Ctrl+C to stop the application"
+        npm run dev
+        return 0
+    fi
 }
 
 # Main setup function
@@ -690,7 +709,7 @@ main() {
     check_requirements
     install_dependencies
     setup_environment
-    creat_directories
+    create_directories
     setup_firewall
     
     # Test database connection
@@ -706,16 +725,42 @@ main() {
     fi
     
     if [ "$NO_START" = false ]; then
-        start_application &
-        APP_PID=$!
+        # Check if systemctl is available and user wants systemd service
+        if command_exists systemctl; then
+            read -p "Do you want to run the API as a systemd service? (Y/n): " -n 1 -r
+            echo
+            # If user just presses Enter, default to Y
+            if [[ -z "$REPLY" ]] || [[ ! $REPLY =~ ^[Nn]$ ]]; then
+                create_systemd_service
+                if [ $? -eq 0 ]; then
+                    sudo systemctl start freeradius-api.service
+                    if [ $? -eq 0 ]; then
+                        print_success "Application started as systemd service"
+                        print_status "Use 'sudo systemctl status freeradius-api' to check status"
+                        print_status "Use 'sudo systemctl stop freeradius-api' to stop the service"
+                        print_status "Use 'sudo systemctl restart freeradius-api' to restart the service"
+                        print_status "Use 'journalctl -u freeradius-api -f' to view logs"
+                    else
+                        print_error "Failed to start systemd service"
+                        # Fall back to PM2 or development mode
+                        start_application_fallback
+                    fi
+                else
+                    print_error "Failed to create systemd service"
+                    # Fall back to PM2 or development mode
+                    start_application_fallback
+                fi
+            else
+                # User chose not to use systemd, fall back to PM2 or development mode
+                start_application_fallback
+            fi
+        else
+            # systemctl not available, fall back to PM2 or development mode
+            start_application_fallback
+        fi
         
         # Run health check
         health_check
-        
-        # If not using PM2, wait for the application
-        if ! command_exists pm2; then
-            wait $APP_PID
-        fi
     else
         print_success "Setup completed successfully!"
         print_status "To start the application manually, run: npm start"
