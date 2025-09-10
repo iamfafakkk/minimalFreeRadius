@@ -581,6 +581,51 @@ EOF
     log_message "Test users setup completed successfully"
 }
 
+# Fungsi untuk konfigurasi UFW firewall
+configure_ufw_firewall() {
+    print_message $BLUE "🔥 Mengkonfigurasi UFW Firewall..."
+    show_progress 1 6 "Checking UFW installation..."
+    
+    # Cek apakah UFW terinstal
+    if ! check_command "ufw"; then
+        show_progress 2 6 "Installing UFW..."
+        run_command "apt-get install -y ufw" "Install UFW" $LINENO
+    else
+        show_progress 2 6 "UFW already installed"
+        log_message "UFW already installed"
+    fi
+    
+    show_progress 3 6 "Configuring UFW rules for FreeRADIUS..."
+    # Aktifkan port 1812 (Authentication) dan 1813 (Accounting) untuk UDP
+    run_command "ufw allow 1812/udp comment 'FreeRADIUS Authentication'" "Allow port 1812/udp" $LINENO
+    run_command "ufw allow 1813/udp comment 'FreeRADIUS Accounting'" "Allow port 1813/udp" $LINENO
+    
+    show_progress 4 6 "Enabling UFW if not already enabled..."
+    # Cek status UFW dan aktifkan jika belum aktif
+    if ! ufw status | grep -q "Status: active"; then
+        # Aktifkan UFW dengan konfirmasi otomatis
+        run_command "echo 'y' | ufw enable" "Enable UFW" $LINENO
+    else
+        log_message "UFW already enabled"
+    fi
+    
+    show_progress 5 6 "Verifying UFW rules..."
+    # Verifikasi rules yang telah ditambahkan
+    local ufw_rules=$(ufw status numbered | grep -E "1812|1813" | wc -l)
+    
+    if [ "$ufw_rules" -lt 2 ]; then
+        print_message $YELLOW "⚠️  Peringatan: Rules UFW untuk FreeRADIUS mungkin tidak terkonfigurasi dengan benar"
+        log_message "WARNING: UFW rules for FreeRADIUS may not be configured correctly"
+    else
+        print_message $GREEN "✅ Rules UFW untuk port 1812 dan 1813 berhasil dikonfigurasi"
+        log_message "UFW rules for ports 1812 and 1813 configured successfully"
+    fi
+    
+    show_progress 6 6 "UFW firewall configuration completed"
+    print_message $GREEN "✅ UFW Firewall berhasil dikonfigurasi untuk FreeRADIUS"
+    log_message "UFW firewall configuration completed successfully"
+}
+
 # Fungsi untuk validasi post-installation
 validate_installation() {
     print_message $BLUE "🔍 Memvalidasi instalasi..."
@@ -681,6 +726,7 @@ show_usage_documentation() {
     print_message $GREEN "=== INFORMASI INSTALASI ==="
     echo "• FreeRADIUS Server: Terinstal dan berjalan"
     echo "• MySQL Database: Terinstal dan terkonfigurasi"
+    echo "• UFW Firewall: Dikonfigurasi untuk port 1812/1813 UDP"
     echo "• Database Name: $RADIUS_DB_NAME"
     echo "• Database User: $RADIUS_DB_USER"
     echo "• Log File: $LOG_FILE"
@@ -727,6 +773,8 @@ show_usage_documentation() {
     echo "• Debug mode: freeradius -X"
     echo "• Test konfigurasi: freeradius -CX"
     echo "• Cek port: netstat -ulnp | grep 1812"
+    echo "• Cek UFW status: ufw status"
+    echo "• Cek UFW rules: ufw status numbered"
     echo
     
     print_message $YELLOW "=== KEAMANAN ==="
@@ -762,6 +810,7 @@ main() {
     echo "   • FreeRADIUS Server"
     echo "   • MySQL Server"
     echo "   • Database dan tabel untuk autentikasi"
+    echo "   • UFW Firewall (port 1812 dan 1813 UDP)"
     echo "   • Konfigurasi minimal untuk testing"
     echo
     
@@ -800,6 +849,10 @@ main() {
     echo
     print_message $BLUE "👤 Membuat user testing..."
     setup_test_users
+    
+    echo
+    print_message $BLUE "🔥 Mengkonfigurasi UFW Firewall..."
+    configure_ufw_firewall
     
     echo
     print_message $BLUE "🔍 Memvalidasi instalasi..."
