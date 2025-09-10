@@ -279,18 +279,23 @@ setup_firewall() {
     
     # Check if ufw is available
     if command_exists ufw; then
-        # Allow port 3000 for the API
+        # Allow port 80 and 443 for Nginx
+        print_status "Opening ports 80 and 443 for Nginx..."
+        sudo ufw allow 80/tcp
+        sudo ufw allow 443/tcp
+        
+        # Allow port 3000 for the API (in case direct access is needed)
         print_status "Opening port 3000 for FreeRADIUS API..."
         sudo ufw allow 3000/tcp
         
         if [ $? -eq 0 ]; then
-            print_success "Port 3000 opened successfully"
+            print_success "Ports 80, 443, and 3000 opened successfully"
         else
-            print_warning "Failed to open port 3000. You may need to configure firewall manually"
+            print_warning "Failed to open ports. You may need to configure firewall manually"
         fi
     else
-        print_warning "UFW not found. Please manually configure firewall to allow port 3000"
-        print_status "Manual command: sudo ufw allow 3000/tcp"
+        print_warning "UFW not found. Please manually configure firewall to allow ports 80, 443, and 3000"
+        print_status "Manual commands: sudo ufw allow 80/tcp; sudo ufw allow 443/tcp; sudo ufw allow 3000/tcp"
     fi
 }
 
@@ -544,6 +549,186 @@ health_check() {
     fi
 }
 
+# Function to validate domain name
+validate_domain() {
+    local domain=$1
+    
+    # Check if it's localhost or IP address
+    if [[ "$domain" == "localhost" ]] || [[ "$domain" == "127.0.0.1" ]]; then
+        return 0
+    fi
+    
+    # Simple domain validation regex
+    # Allows alphanumeric characters, hyphens, and dots
+    # Must have at least one dot and valid TLD
+    if [[ "$domain" =~ ^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$ ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function to get domain input from user
+get_domain_input() {
+    echo
+    print_status "Nginx Domain Configuration"
+    print_status "=========================="
+    
+    # Ask for domain name
+    read -p "Enter your domain name (e.g., example.com) [localhost]: " -r DOMAIN_NAME
+    echo
+    
+    # Use localhost as default if no input
+    if [[ -z "$DOMAIN_NAME" ]]; then
+        DOMAIN_NAME="localhost"
+    fi
+    
+    # Validate domain format
+    if ! validate_domain "$DOMAIN_NAME"; then
+        print_warning "Invalid domain format. Using localhost as default."
+        DOMAIN_NAME="localhost"
+    fi
+    
+    print_success "Domain set to: $DOMAIN_NAME"
+    export DOMAIN_NAME
+}
+
+# Function to install and configure Nginx
+install_nginx() {
+    print_status "Installing and configuring Nginx..."
+    
+    # Detect OS and install Nginx accordingly
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        if command_exists brew; then
+            print_status "Installing Nginx via Homebrew..."
+            brew install nginx
+        else
+            print_warning "Homebrew not found. Please install Homebrew first: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+            return 1
+        fi
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        # Linux - detect distribution
+        if command_exists apt-get; then
+            # Debian/Ubuntu
+            print_status "Installing Nginx via apt-get..."
+            sudo apt-get update
+            sudo apt-get install -y nginx
+        elif command_exists yum; then
+            # CentOS/RHEL
+            print_status "Installing Nginx via yum..."
+            sudo yum install -y nginx
+        elif command_exists dnf; then
+            # Fedora
+            print_status "Installing Nginx via dnf..."
+            sudo dnf install -y nginx
+        else
+            print_warning "Package manager not found. Please install Nginx manually."
+            return 1
+        fi
+    else
+        print_warning "Unsupported OS. Please install Nginx manually."
+        return 1
+    fi
+    
+    if [ $? -eq 0 ]; then
+        print_success "Nginx installed successfully"
+    else
+        print_error "Failed to install Nginx"
+        return 1
+    fi
+}
+
+# Function to configure Nginx as reverse proxy
+configure_nginx() {
+    print_status "Configuring Nginx as reverse proxy..."
+    
+    # Backup existing nginx.conf if it exists
+    if [ -f "/etc/nginx/nginx.conf" ]; then
+        print_status "Backing up existing nginx.conf..."
+        sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup.$(date +%Y%m%d_%H%M%S)
+    fi
+    
+    # Copy our nginx configuration
+    print_status "Copying Nginx configuration..."
+    sudo cp nginx/nginx.conf /etc/nginx/nginx.conf
+    
+    # Replace placeholder with actual domain
+    print_status "Updating domain configuration to ${DOMAIN_NAME}..."
+    sudo sed -i "s/{{DOMAIN_NAME}}/${DOMAIN_NAME}/g" /etc/nginx/nginx.conf
+    
+    # Create SSL directory if it doesn't exist
+    sudo mkdir -p /etc/nginx/ssl
+    
+    # Create self-signed certificate for the domain (in production, user should replace with real certificate)
+    if command_exists openssl; then
+        print_status "Generating self-signed SSL certificate for ${DOMAIN_NAME}..."
+        sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+            -keyout /etc/nginx/ssl/server.key \
+            -out /etc/nginx/ssl/server.crt \
+            -subj "/C=US/ST=State/L=City/O=Organization/CN=${DOMAIN_NAME}"
+        
+        if [ $? -eq 0 ]; then
+            print_success "Self-signed SSL certificate created for ${DOMAIN_NAME}"
+            print_warning "For production, replace with a valid SSL certificate"
+        else
+            print_warning "Failed to create self-signed certificate"
+        fi
+    else
+        print_warning "OpenSSL not found. Please manually configure SSL certificates"
+    fi
+    
+    # Test Nginx configuration
+    print_status "Testing Nginx configuration..."
+    sudo nginx -t
+    
+    if [ $? -eq 0 ]; then
+        print_success "Nginx configuration test passed"
+        return 0
+    else
+        print_error "Nginx configuration test failed"
+        return 1
+    fi
+}
+
+# Function to start Nginx service
+start_nginx() {
+    print_status "Starting Nginx service..."
+    
+    # Detect OS and start Nginx accordingly
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS - Homebrew installation
+        if command_exists brew; then
+            print_status "Starting Nginx via Homebrew services..."
+            brew services start nginx
+        else
+            # Try to start directly
+            sudo nginx
+        fi
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        # Linux - use systemctl
+        if command_exists systemctl; then
+            print_status "Starting Nginx via systemctl..."
+            sudo systemctl start nginx
+            sudo systemctl enable nginx
+        else
+            # Try to start directly
+            sudo nginx
+        fi
+    else
+        # Try to start directly
+        sudo nginx
+    fi
+    
+    if [ $? -eq 0 ]; then
+        print_success "Nginx started successfully"
+        return 0
+    else
+        print_error "Failed to start Nginx"
+        return 1
+    fi
+}
+
 # Function to display usage information
 show_usage() {
     echo "FreeRADIUS API Setup Script"
@@ -558,6 +743,7 @@ show_usage() {
     echo "  --install-only    Only install dependencies"
     echo "  --db-only         Only initialize database"
     echo "  --systemd-only    Only create and start systemd service"
+    echo "  --nginx-only      Only install and configure Nginx"
     echo "  --remove-systemd  Remove systemd service"
     echo "  --no-start        Don't start the application"
     echo "  --help           Show this help message"
@@ -568,6 +754,7 @@ show_usage() {
     echo "  • Environment configuration"
     echo "  • Database initialization"
     echo "  • Systemd service creation"
+    echo "  • Nginx reverse proxy configuration"
     echo "  • Firewall configuration"
     echo ""
     echo "Requirements:"
@@ -580,6 +767,7 @@ show_usage() {
     echo "  $0                    # Full setup (recommended)"
     echo "  $0 --check-only      # Check requirements only"
     echo "  $0 --systemd-only    # Setup systemd service only"
+    echo "  $0 --nginx-only      # Setup Nginx reverse proxy only"
     echo "  $0 --remove-systemd  # Remove systemd service"
     echo "  $0 --no-start        # Setup without starting"
 }
@@ -614,6 +802,7 @@ main() {
     INSTALL_ONLY=false
     DB_ONLY=false
     SYSTEMD_ONLY=false
+    NGINX_ONLY=false
     REMOVE_SYSTEMD=false
     NO_START=false
     
@@ -633,6 +822,10 @@ main() {
                 ;;
             --systemd-only)
                 SYSTEMD_ONLY=true
+                shift
+                ;;
+            --nginx-only)
+                NGINX_ONLY=true
                 shift
                 ;;
             --remove-systemd)
@@ -669,6 +862,34 @@ main() {
     
     if [ "$DB_ONLY" = true ]; then
         init_database
+        exit 0
+    fi
+    
+    if [ "$NGINX_ONLY" = true ]; then
+        # Get domain input from user
+        get_domain_input
+        
+        install_nginx
+        if [ $? -eq 0 ]; then
+            configure_nginx
+            if [ $? -eq 0 ]; then
+                start_nginx
+                if [ $? -eq 0 ]; then
+                    print_success "Nginx reverse proxy configured and started successfully"
+                    print_status "Nginx is now serving as a reverse proxy for the FreeRADIUS API"
+                    print_status "Access the API via: http://${DOMAIN_NAME} or https://${DOMAIN_NAME}"
+                else
+                    print_error "Failed to start Nginx"
+                    exit 1
+                fi
+            else
+                print_error "Failed to configure Nginx"
+                exit 1
+            fi
+        else
+            print_error "Failed to install Nginx"
+            exit 1
+        fi
         exit 0
     fi
     
@@ -724,7 +945,30 @@ main() {
         print_warning "Please check your database configuration in .env file"
     fi
     
+    # Install and configure Nginx
+    read -p "Do you want to install and configure Nginx as a reverse proxy? (Y/n): " -n 1 -r
+    echo
+    if [[ -z "$REPLY" ]] || [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        # Get domain input from user
+        get_domain_input
+        
+        install_nginx
+        if [ $? -eq 0 ]; then
+            configure_nginx
+            if [ $? -ne 0 ]; then
+                print_error "Failed to configure Nginx"
+            fi
+        else
+            print_error "Failed to install Nginx"
+        fi
+    fi
+    
     if [ "$NO_START" = false ]; then
+        # Start Nginx if it was installed
+        if command_exists nginx && [[ (-z "$REPLY") || (! $REPLY =~ ^[Nn]$) ]]; then
+            start_nginx
+        fi
+        
         # Check if systemctl is available and user wants systemd service
         if command_exists systemctl; then
             read -p "Do you want to run the API as a systemd service? (Y/n): " -n 1 -r
@@ -784,6 +1028,10 @@ main() {
     echo "  sudo systemctl stop freeradius-api     # Stop systemd service"
     echo "  sudo systemctl restart freeradius-api  # Restart systemd service"
     echo "  journalctl -u freeradius-api -f        # View systemd service logs"
+    echo "  sudo systemctl status nginx            # Check Nginx service status"
+    echo "  sudo systemctl start nginx             # Start Nginx service"
+    echo "  sudo nginx -t                          # Test Nginx configuration"
+    echo "  sudo nginx -s reload                   # Reload Nginx configuration"
     echo ""
 }
 
