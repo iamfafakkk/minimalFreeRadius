@@ -130,6 +130,7 @@ npm start
 
 - **[API Documentation](docs/API_DOCUMENTATION.md)** - Dokumentasi lengkap endpoint API
 - **[Installation Guide](docs/INSTALLATION_GUIDE.md)** - Panduan instalasi dan deployment
+- **[Cloudflare SSL Configuration](docs/CLOUDFLARE_SSL_CONFIGURATION.md)** - Panduan konfigurasi SSL dengan Cloudflare
 
 ## 🔗 Endpoint Utama
 
@@ -284,6 +285,15 @@ docker-compose up -d
 
 # Check logs
 docker-compose logs -f
+```
+
+### Menggunakan Nginx Reverse Proxy dengan Cloudflare SSL
+
+```bash
+# Jalankan setup script dengan opsi nginx-only
+./setup.sh --nginx-only
+
+# Ikuti petunjuk untuk mengkonfigurasi domain dan mode SSL Cloudflare
 ```
 
 ## 📊 Monitoring

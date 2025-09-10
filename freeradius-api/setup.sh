@@ -593,6 +593,47 @@ get_domain_input() {
     export DOMAIN_NAME
 }
 
+# Function to get Cloudflare SSL mode
+get_cloudflare_ssl_mode() {
+    echo
+    print_status "Cloudflare SSL Configuration"
+    print_status "============================"
+    echo "Cloudflare offers several SSL modes:"
+    echo "1. Flexible SSL: Traffic is encrypted between visitor and Cloudflare, but not between Cloudflare and your server"
+    echo "2. Full SSL: Traffic is encrypted between visitor and Cloudflare, and between Cloudflare and your server (self-signed certificate)"
+    echo "3. Full SSL (Strict): Traffic is encrypted between visitor and Cloudflare, and between Cloudflare and your server (CA-signed or Cloudflare Origin CA certificate)"
+    echo
+    echo "For production environments, we recommend 'Full SSL (Strict)' for maximum security."
+    echo
+    read -p "Select SSL mode (1: Flexible, 2: Full, 3: Full Strict) [3]: " -r SSL_MODE
+    echo
+    
+    # Use Full SSL (Strict) as default if no input
+    if [[ -z "$SSL_MODE" ]]; then
+        SSL_MODE=3
+    fi
+    
+    # Validate input
+    if [[ ! "$SSL_MODE" =~ ^[1-3]$ ]]; then
+        print_warning "Invalid SSL mode. Using Full SSL (Strict) as default."
+        SSL_MODE=3
+    fi
+    
+    case $SSL_MODE in
+        1)
+            print_success "Cloudflare SSL mode set to: Flexible"
+            ;;
+        2)
+            print_success "Cloudflare SSL mode set to: Full"
+            ;;
+        3)
+            print_success "Cloudflare SSL mode set to: Full (Strict)"
+            ;;
+    esac
+    
+    export SSL_MODE
+}
+
 # Function to install and configure Nginx
 install_nginx() {
     print_status "Installing and configuring Nginx..."
@@ -660,22 +701,30 @@ configure_nginx() {
     # Create SSL directory if it doesn't exist
     sudo mkdir -p /etc/nginx/ssl
     
-    # Create self-signed certificate for the domain (in production, user should replace with real certificate)
-    if command_exists openssl; then
-        print_status "Generating self-signed SSL certificate for ${DOMAIN_NAME}..."
-        sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-            -keyout /etc/nginx/ssl/server.key \
-            -out /etc/nginx/ssl/server.crt \
-            -subj "/C=US/ST=State/L=City/O=Organization/CN=${DOMAIN_NAME}"
-        
-        if [ $? -eq 0 ]; then
-            print_success "Self-signed SSL certificate created for ${DOMAIN_NAME}"
-            print_warning "For production, replace with a valid SSL certificate"
+    # For Cloudflare Flexible SSL, no certificate is needed on the origin server
+    # For Full SSL or Full SSL (Strict), we need to generate or provide certificates
+    if [ "$SSL_MODE" -eq 2 ] || [ "$SSL_MODE" -eq 3 ]; then
+        # Create self-signed certificate for the domain (in production, user should replace with real certificate)
+        if command_exists openssl; then
+            print_status "Generating self-signed SSL certificate for ${DOMAIN_NAME}..."
+            sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+                -keyout /etc/nginx/ssl/server.key \
+                -out /etc/nginx/ssl/server.crt \
+                -subj "/C=US/ST=State/L=City/O=Organization/CN=${DOMAIN_NAME}"
+            
+            if [ $? -eq 0 ]; then
+                print_success "Self-signed SSL certificate created for ${DOMAIN_NAME}"
+                if [ "$SSL_MODE" -eq 3 ]; then
+                    print_warning "For Full SSL (Strict), replace the self-signed certificate with a CA-signed or Cloudflare Origin CA certificate"
+                fi
+            else
+                print_warning "Failed to create self-signed certificate"
+            fi
         else
-            print_warning "Failed to create self-signed certificate"
+            print_warning "OpenSSL not found. Please manually configure SSL certificates"
         fi
     else
-        print_warning "OpenSSL not found. Please manually configure SSL certificates"
+        print_status "Using Cloudflare Flexible SSL - no origin certificate required"
     fi
     
     # Test Nginx configuration
@@ -868,6 +917,8 @@ main() {
     if [ "$NGINX_ONLY" = true ]; then
         # Get domain input from user
         get_domain_input
+        # Get Cloudflare SSL mode
+        get_cloudflare_ssl_mode
         
         install_nginx
         if [ $? -eq 0 ]; then
@@ -878,6 +929,29 @@ main() {
                     print_success "Nginx reverse proxy configured and started successfully"
                     print_status "Nginx is now serving as a reverse proxy for the FreeRADIUS API"
                     print_status "Access the API via: http://${DOMAIN_NAME} or https://${DOMAIN_NAME}"
+                    
+                    # Provide Cloudflare configuration guidance
+                    echo
+                    print_status "Cloudflare Configuration Guide:"
+                    case $SSL_MODE in
+                        1)
+                            echo "1. In your Cloudflare dashboard, go to SSL/TLS > Overview"
+                            echo "2. Set SSL/TLS encryption mode to 'Flexible'"
+                            echo "3. No additional origin certificate configuration needed"
+                            ;;
+                        2)
+                            echo "1. In your Cloudflare dashboard, go to SSL/TLS > Overview"
+                            echo "2. Set SSL/TLS encryption mode to 'Full'"
+                            echo "3. Your origin server is using a self-signed certificate"
+                            echo "4. For production, replace with a valid certificate"
+                            ;;
+                        3)
+                            echo "1. In your Cloudflare dashboard, go to SSL/TLS > Overview"
+                            echo "2. Set SSL/TLS encryption mode to 'Full (Strict)'"
+                            echo "3. Your origin server needs a valid certificate (CA-signed or Cloudflare Origin CA)"
+                            echo "4. For production, obtain a certificate from Cloudflare Origin CA or a CA"
+                            ;;
+                    esac
                 else
                     print_error "Failed to start Nginx"
                     exit 1
@@ -951,6 +1025,8 @@ main() {
     if [[ -z "$REPLY" ]] || [[ ! $REPLY =~ ^[Nn]$ ]]; then
         # Get domain input from user
         get_domain_input
+        # Get Cloudflare SSL mode
+        get_cloudflare_ssl_mode
         
         install_nginx
         if [ $? -eq 0 ]; then
@@ -962,7 +1038,7 @@ main() {
             print_error "Failed to install Nginx"
         fi
     fi
-    
+
     if [ "$NO_START" = false ]; then
         # Start Nginx if it was installed
         if command_exists nginx && [[ (-z "$REPLY") || (! $REPLY =~ ^[Nn]$) ]]; then
