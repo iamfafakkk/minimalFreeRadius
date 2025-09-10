@@ -2,9 +2,17 @@
 
 #=============================================================================
 # FreeRADIUS Installation Script for Ubuntu 22.04 LTS
-# Version: 1.0
+# Version: 1.1
 # Description: Script otomatis untuk instalasi dan konfigurasi FreeRADIUS
 #              dengan MySQL backend untuk autentikasi RADIUS
+# 
+# Fitur Baru v1.1:
+# - Deteksi MySQL yang sudah terinstall
+# - Prompt password root MySQL yang sudah ada
+# - Pengecekan database dan user yang sudah ada
+# - Pengecekan schema FreeRADIUS yang sudah ada
+# - Alur eksekusi yang lebih aman untuk sistem existing
+# 
 # Author: Auto-generated Script
 # Date: $(date +"%Y-%m-%d")
 #=============================================================================
@@ -245,8 +253,78 @@ update_system() {
     log_message "System package prep completed successfully"
 }
 
+# Fungsi untuk mengecek apakah MySQL sudah terinstall
+check_mysql_installed() {
+    if dpkg -l | grep -q "mysql-server" || systemctl is-active --quiet mysql || [ -f "/usr/bin/mysql" ]; then
+        return 0  # MySQL sudah terinstall
+    else
+        return 1  # MySQL belum terinstall
+    fi
+}
+
+# Fungsi untuk meminta password root MySQL yang sudah ada
+get_existing_mysql_password() {
+    print_message $YELLOW "🔐 MySQL sudah terinstall. Silakan masukkan password root MySQL yang sudah ada:"
+    
+    # Coba tanpa password dulu
+    if mysql -uroot -e "SELECT 1" >/dev/null 2>&1; then
+        print_message $GREEN "✅ MySQL root tidak memiliki password (akses socket)"
+        return 0
+    fi
+    
+    # Coba dengan password default yang ada di script
+    if mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "SELECT 1" >/dev/null 2>&1; then
+        print_message $GREEN "✅ Password default script masih valid"
+        return 0
+    fi
+    
+    # Minta password dari user
+    local attempts=0
+    local max_attempts=3
+    
+    while [ $attempts -lt $max_attempts ]; do
+        echo -n "Password root MySQL: "
+        read -s user_password
+        echo
+        
+        if mysql -uroot -p"$user_password" -e "SELECT 1" >/dev/null 2>&1; then
+            MYSQL_ROOT_PASSWORD="$user_password"
+            print_message $GREEN "✅ Password MySQL root berhasil diverifikasi"
+            log_message "MySQL root password verified successfully"
+            return 0
+        else
+            attempts=$((attempts + 1))
+            if [ $attempts -lt $max_attempts ]; then
+                print_message $RED "❌ Password salah. Silakan coba lagi ($attempts/$max_attempts)"
+            fi
+        fi
+    done
+    
+    print_message $RED "❌ Gagal verifikasi password MySQL setelah $max_attempts percobaan"
+    print_message $YELLOW "💡 Tip: Anda bisa reset password MySQL dengan: sudo mysql_secure_installation"
+    handle_error 1 "Tidak dapat mengakses MySQL dengan password yang diberikan" $LINENO
+}
+
 # Fungsi untuk instalasi MySQL Server
 install_mysql() {
+    # Cek apakah MySQL sudah terinstall
+    if check_mysql_installed; then
+        print_message $GREEN "✅ MySQL Server sudah terinstall"
+        log_message "MySQL Server already installed, skipping installation"
+        
+        # Pastikan service MySQL berjalan
+        if ! check_service_status "mysql"; then
+            print_message $BLUE "🔄 Memulai service MySQL..."
+            run_command "systemctl start mysql" "Start MySQL service" $LINENO
+        fi
+        
+        # Verifikasi dan dapatkan password root
+        get_existing_mysql_password
+        
+        print_message $GREEN "✅ MySQL Server siap digunakan"
+        return 0
+    fi
+    
     print_message $BLUE "🗄️  Menginstal MySQL Server..."
     show_progress 1 6 "Installing MySQL Server..."
     
@@ -339,25 +417,60 @@ setup_radius_database() {
         handle_error 1 "Tidak dapat terhubung ke MySQL sebagai admin (root/debian-sys-maint)" $LINENO
     fi
 
-    # Buat database radius
-    "${MYSQL_ADMIN[@]}" <<EOF
+    # Cek apakah database radius sudah ada
+    if "${MYSQL_ADMIN[@]}" -e "USE $RADIUS_DB_NAME; SELECT 1;" >/dev/null 2>&1; then
+        print_message $YELLOW "⚠️  Database '$RADIUS_DB_NAME' sudah ada"
+        if confirm_action "Apakah Anda ingin melanjutkan dengan database yang sudah ada?"; then
+            log_message "Using existing database $RADIUS_DB_NAME"
+        else
+            handle_error 1 "Instalasi dibatalkan oleh user" $LINENO
+        fi
+    else
+        # Buat database radius
+        "${MYSQL_ADMIN[@]}" <<EOF
 CREATE DATABASE IF NOT EXISTS $RADIUS_DB_NAME;
 EOF
-    
-    if [ $? -ne 0 ]; then
-        handle_error 1 "Gagal membuat database $RADIUS_DB_NAME" $LINENO
+        
+        if [ $? -ne 0 ]; then
+            handle_error 1 "Gagal membuat database $RADIUS_DB_NAME" $LINENO
+        fi
+        print_message $GREEN "✅ Database '$RADIUS_DB_NAME' berhasil dibuat"
     fi
     
     show_progress 2 5 "Creating database user..."
-    # Buat user untuk FreeRADIUS (paksa plugin klasik untuk kompatibilitas luas)
-    "${MYSQL_ADMIN[@]}" <<EOF
+    
+    # Cek apakah user radius sudah ada
+    if "${MYSQL_ADMIN[@]}" -e "SELECT User FROM mysql.user WHERE User='$RADIUS_DB_USER' AND Host='localhost';" | grep -q "$RADIUS_DB_USER"; then
+        print_message $YELLOW "⚠️  User database '$RADIUS_DB_USER' sudah ada"
+        
+        # Test apakah password user masih valid
+        if mysql --user="$RADIUS_DB_USER" --password="$RADIUS_DB_PASSWORD" --database="$RADIUS_DB_NAME" --execute="SELECT 1;" >/dev/null 2>&1; then
+            print_message $GREEN "✅ User database '$RADIUS_DB_USER' dapat diakses dengan password yang ada"
+            log_message "Using existing database user $RADIUS_DB_USER"
+        else
+            print_message $YELLOW "⚠️  Password user '$RADIUS_DB_USER' mungkin berbeda, akan diperbarui"
+            "${MYSQL_ADMIN[@]}" <<EOF
+ALTER USER '$RADIUS_DB_USER'@'localhost' IDENTIFIED WITH mysql_native_password BY '$RADIUS_DB_PASSWORD';
+GRANT ALL PRIVILEGES ON $RADIUS_DB_NAME.* TO '$RADIUS_DB_USER'@'localhost';
+FLUSH PRIVILEGES;
+EOF
+            if [ $? -ne 0 ]; then
+                handle_error 1 "Gagal memperbarui password user database $RADIUS_DB_USER" $LINENO
+            fi
+            print_message $GREEN "✅ Password user database '$RADIUS_DB_USER' berhasil diperbarui"
+        fi
+    else
+        # Buat user untuk FreeRADIUS (paksa plugin klasik untuk kompatibilitas luas)
+        "${MYSQL_ADMIN[@]}" <<EOF
 CREATE USER IF NOT EXISTS '$RADIUS_DB_USER'@'localhost' IDENTIFIED WITH mysql_native_password BY '$RADIUS_DB_PASSWORD';
 GRANT ALL PRIVILEGES ON $RADIUS_DB_NAME.* TO '$RADIUS_DB_USER'@'localhost';
 FLUSH PRIVILEGES;
 EOF
-    
-    if [ $? -ne 0 ]; then
-        handle_error 1 "Gagal membuat user database $RADIUS_DB_USER" $LINENO
+        
+        if [ $? -ne 0 ]; then
+            handle_error 1 "Gagal membuat user database $RADIUS_DB_USER" $LINENO
+        fi
+        print_message $GREEN "✅ User database '$RADIUS_DB_USER' berhasil dibuat"
     fi
     
     show_progress 3 5 "Testing database connection..."
@@ -390,14 +503,27 @@ install_freeradius() {
     run_command "systemctl stop freeradius" "Stop FreeRADIUS service" $LINENO
     
     show_progress 4 8 "Creating FreeRADIUS database schema..."
-    # Import schema FreeRADIUS ke database
-    if [ -f "/etc/freeradius/3.0/mods-config/sql/main/mysql/schema.sql" ]; then
-        mysql --user="$RADIUS_DB_USER" --password="$RADIUS_DB_PASSWORD" --database="$RADIUS_DB_NAME" < /etc/freeradius/3.0/mods-config/sql/main/mysql/schema.sql
-        if [ $? -ne 0 ]; then
-            handle_error 1 "Gagal mengimport schema FreeRADIUS" $LINENO
+    
+    # Cek apakah schema FreeRADIUS sudah ada
+    if mysql --user="$RADIUS_DB_USER" --password="$RADIUS_DB_PASSWORD" --database="$RADIUS_DB_NAME" --execute="SHOW TABLES LIKE 'radcheck';" | grep -q "radcheck"; then
+        print_message $YELLOW "⚠️  Schema FreeRADIUS sudah ada di database"
+        if confirm_action "Apakah Anda ingin melanjutkan dengan schema yang sudah ada?"; then
+            log_message "Using existing FreeRADIUS schema"
+            print_message $GREEN "✅ Menggunakan schema FreeRADIUS yang sudah ada"
+        else
+            handle_error 1 "Instalasi dibatalkan oleh user" $LINENO
         fi
     else
-        handle_error 1 "File schema FreeRADIUS tidak ditemukan" $LINENO
+        # Import schema FreeRADIUS ke database
+        if [ -f "/etc/freeradius/3.0/mods-config/sql/main/mysql/schema.sql" ]; then
+            mysql --user="$RADIUS_DB_USER" --password="$RADIUS_DB_PASSWORD" --database="$RADIUS_DB_NAME" < /etc/freeradius/3.0/mods-config/sql/main/mysql/schema.sql
+            if [ $? -ne 0 ]; then
+                handle_error 1 "Gagal mengimport schema FreeRADIUS" $LINENO
+            fi
+            print_message $GREEN "✅ Schema FreeRADIUS berhasil diimport"
+        else
+            handle_error 1 "File schema FreeRADIUS tidak ditemukan" $LINENO
+        fi
     fi
     
     show_progress 5 8 "Restoring safe permissions..."
