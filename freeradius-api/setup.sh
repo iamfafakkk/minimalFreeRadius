@@ -34,30 +34,135 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Function to install Node.js and npm using nvm
+install_nodejs_with_nvm() {
+    print_status "Installing Node.js and npm using nvm..."
+    
+    # Check if nvm is already installed
+    if [ -s "$HOME/.nvm/nvm.sh" ]; then
+        print_status "NVM is already installed"
+        # Load nvm
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+    else
+        print_status "Installing NVM..."
+        # Download and install nvm
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+        
+        if [ $? -ne 0 ]; then
+            print_error "Failed to install NVM"
+            return 1
+        fi
+        
+        # Load nvm
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+        
+        print_success "NVM installed successfully"
+    fi
+    
+    # Install latest LTS Node.js
+    print_status "Installing latest LTS Node.js..."
+    nvm install --lts
+    nvm use --lts
+    nvm alias default lts/*
+    
+    if [ $? -eq 0 ]; then
+        print_success "Node.js $(node --version) installed successfully"
+        print_success "npm $(npm --version) installed successfully"
+        
+        # Add nvm to shell profile for future sessions
+        SHELL_PROFILE=""
+        if [ -f "$HOME/.bashrc" ]; then
+            SHELL_PROFILE="$HOME/.bashrc"
+        elif [ -f "$HOME/.zshrc" ]; then
+            SHELL_PROFILE="$HOME/.zshrc"
+        elif [ -f "$HOME/.profile" ]; then
+            SHELL_PROFILE="$HOME/.profile"
+        fi
+        
+        if [ -n "$SHELL_PROFILE" ]; then
+            # Check if nvm is already in the profile
+            if ! grep -q "NVM_DIR" "$SHELL_PROFILE"; then
+                echo '' >> "$SHELL_PROFILE"
+                echo '# NVM Configuration' >> "$SHELL_PROFILE"
+                echo 'export NVM_DIR="$HOME/.nvm"' >> "$SHELL_PROFILE"
+                echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> "$SHELL_PROFILE"
+                echo '[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"' >> "$SHELL_PROFILE"
+                print_success "NVM configuration added to $SHELL_PROFILE"
+            fi
+        fi
+        
+        return 0
+    else
+        print_error "Failed to install Node.js with NVM"
+        return 1
+    fi
+}
+
 # Function to check system requirements
 check_requirements() {
     print_status "Checking system requirements..."
     
-    # Check Node.js
+    # Check Node.js and npm
+    NODE_NEEDS_INSTALL=false
+    NPM_NEEDS_INSTALL=false
+    
     if command_exists node; then
         NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
         if [ "$NODE_VERSION" -ge 16 ]; then
             print_success "Node.js $(node --version) is installed"
         else
-            print_error "Node.js version 16 or higher is required. Current: $(node --version)"
-            exit 1
+            print_warning "Node.js version 16 or higher is required. Current: $(node --version)"
+            NODE_NEEDS_INSTALL=true
         fi
     else
-        print_error "Node.js is not installed. Please install Node.js 16 or higher."
-        exit 1
+        print_warning "Node.js is not installed"
+        NODE_NEEDS_INSTALL=true
     fi
     
-    # Check npm
     if command_exists npm; then
         print_success "npm $(npm --version) is installed"
     else
-        print_error "npm is not installed. Please install npm."
-        exit 1
+        print_warning "npm is not installed"
+        NPM_NEEDS_INSTALL=true
+    fi
+    
+    # Install Node.js and npm if needed
+    if [ "$NODE_NEEDS_INSTALL" = true ] || [ "$NPM_NEEDS_INSTALL" = true ]; then
+        print_status "Installing Node.js and npm automatically..."
+        
+        # Check if curl is available for nvm installation
+        if ! command_exists curl; then
+            print_error "curl is required to install Node.js via NVM. Please install curl first."
+            print_status "On macOS: brew install curl"
+            print_status "On Ubuntu/Debian: sudo apt-get install curl"
+            print_status "On CentOS/RHEL: sudo yum install curl"
+            exit 1
+        fi
+        
+        install_nodejs_with_nvm
+        if [ $? -ne 0 ]; then
+            print_error "Failed to install Node.js and npm automatically"
+            print_error "Please install Node.js 16 or higher manually from https://nodejs.org/"
+            exit 1
+        fi
+        
+        # Verify installation
+        if command_exists node && command_exists npm; then
+            NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
+            if [ "$NODE_VERSION" -ge 16 ]; then
+                print_success "Node.js $(node --version) and npm $(npm --version) installed successfully"
+            else
+                print_error "Installed Node.js version is still below 16. Please check the installation."
+                exit 1
+            fi
+        else
+            print_error "Node.js or npm installation verification failed"
+            exit 1
+        fi
     fi
     
     # Check MySQL
@@ -67,17 +172,42 @@ check_requirements() {
         print_warning "MySQL client not found. Please ensure MySQL/MariaDB is installed."
     fi
     
-    # Check available memory
-    MEMORY_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-    MEMORY_MB=$((MEMORY_KB / 1024))
-    if [ "$MEMORY_MB" -ge 512 ]; then
-        print_success "Memory: ${MEMORY_MB}MB (sufficient)"
+    # Check available memory (cross-platform)
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        MEMORY_BYTES=$(sysctl -n hw.memsize 2>/dev/null || echo "0")
+        MEMORY_MB=$((MEMORY_BYTES / 1024 / 1024))
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        # Linux
+        if [ -f "/proc/meminfo" ]; then
+            MEMORY_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+            MEMORY_MB=$((MEMORY_KB / 1024))
+        else
+            MEMORY_MB=0
+        fi
     else
-        print_warning "Memory: ${MEMORY_MB}MB (recommended: 512MB+)"
+        MEMORY_MB=0
     fi
     
-    # Check disk space
-    DISK_SPACE=$(df -BM . | awk 'NR==2 {print $4}' | sed 's/M//')
+    if [ "$MEMORY_MB" -gt 0 ]; then
+        if [ "$MEMORY_MB" -ge 512 ]; then
+            print_success "Memory: ${MEMORY_MB}MB (sufficient)"
+        else
+            print_warning "Memory: ${MEMORY_MB}MB (recommended: 512MB+)"
+        fi
+    else
+        print_warning "Could not determine available memory"
+    fi
+    
+    # Check disk space (cross-platform)
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        DISK_SPACE=$(df -m . | awk 'NR==2 {print $4}')
+    else
+        # Linux and others
+        DISK_SPACE=$(df -BM . | awk 'NR==2 {print $4}' | sed 's/M//')
+    fi
+    
     if [ "$DISK_SPACE" -ge 1024 ]; then
         print_success "Disk space: ${DISK_SPACE}MB (sufficient)"
     else
@@ -88,6 +218,13 @@ check_requirements() {
 # Function to install dependencies
 install_dependencies() {
     print_status "Installing Node.js dependencies..."
+    
+    # Load nvm if it exists (in case Node.js was just installed)
+    if [ -s "$HOME/.nvm/nvm.sh" ]; then
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+    fi
     
     if [ -f "package.json" ]; then
         npm install
@@ -259,6 +396,13 @@ remove_systemd_service() {
 create_systemd_service() {
     print_status "Creating systemd service file..."
     
+    # Load nvm if it exists (in case Node.js was installed via nvm)
+    if [ -s "$HOME/.nvm/nvm.sh" ]; then
+        export NVM_DIR="$HOME/.nvm"
+        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+        [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+    fi
+    
     # Ensure dependencies are installed
     if [ ! -d "node_modules" ]; then
         print_status "Installing dependencies first..."
@@ -277,8 +421,18 @@ create_systemd_service() {
         export $(grep -v '^#' .env | xargs)
     fi
     
-    # Get Node.js path
-    NODE_PATH=$(which node)
+    # Get Node.js path (prefer nvm version if available)
+    if [ -s "$HOME/.nvm/nvm.sh" ] && command -v nvm >/dev/null 2>&1; then
+        NODE_PATH=$(nvm which node 2>/dev/null || which node)
+    else
+        NODE_PATH=$(which node)
+    fi
+    
+    # Verify Node.js path exists
+    if [ ! -f "$NODE_PATH" ]; then
+        print_error "Node.js executable not found at $NODE_PATH"
+        return 1
+    fi
     
     # Create service file content
     SERVICE_CONTENT="[Unit]
@@ -393,6 +547,9 @@ health_check() {
 show_usage() {
     echo "FreeRADIUS API Setup Script"
     echo ""
+    echo "This script automatically sets up the FreeRADIUS API environment."
+    echo "It will automatically install Node.js and npm using NVM if not available."
+    echo ""
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Options:"
@@ -403,6 +560,20 @@ show_usage() {
     echo "  --remove-systemd  Remove systemd service"
     echo "  --no-start        Don't start the application"
     echo "  --help           Show this help message"
+    echo ""
+    echo "Features:"
+    echo "  • Automatic Node.js and npm installation via NVM"
+    echo "  • System requirements checking"
+    echo "  • Environment configuration"
+    echo "  • Database initialization"
+    echo "  • Systemd service creation"
+    echo "  • Firewall configuration"
+    echo ""
+    echo "Requirements:"
+    echo "  • curl (for Node.js installation)"
+    echo "  • MySQL/MariaDB server"
+    echo "  • 512MB+ RAM (recommended)"
+    echo "  • 1GB+ disk space (recommended)"
     echo ""
     echo "Examples:"
     echo "  $0                    # Full setup (recommended)"
