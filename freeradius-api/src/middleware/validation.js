@@ -111,46 +111,29 @@ const nasSchemas = {
 const userSchemas = {
   create: Joi.object({
     user: Joi.string()
-      .alphanum()
-      .min(3)
-      .max(64)
+      .min(6)
       .required()
       .messages({
-        'string.alphanum': 'Username must contain only alphanumeric characters',
-        'string.min': 'Username must be at least 3 characters long',
-        'string.max': 'Username must not exceed 64 characters',
+        'string.min': 'Username must be at least 6 characters long',
         'any.required': 'Username is required'
       }),
     password: Joi.string()
       .min(6)
-      .max(128)
       .required()
       .messages({
         'string.min': 'Password must be at least 6 characters long',
-        'string.max': 'Password must not exceed 128 characters',
         'any.required': 'Password is required'
       }),
     profile: Joi.string()
-      .valid('PPP', 'SLIP', 'CSLIP', 'Shell-User', 'Telnet-User', 'Authenticate-Only', 'Promiscuous')
-      .default('PPP')
-      .messages({
-        'any.only': 'Profile must be one of: PPP, SLIP, CSLIP, Shell-User, Telnet-User, Authenticate-Only, Promiscuous'
-      })
   }),
   
   update: Joi.object({
     password: Joi.string()
       .min(6)
-      .max(128)
       .messages({
         'string.min': 'Password must be at least 6 characters long',
-        'string.max': 'Password must not exceed 128 characters'
       }),
     profile: Joi.string()
-      .valid('PPP', 'SLIP', 'CSLIP', 'Shell-User', 'Telnet-User', 'Authenticate-Only', 'Promiscuous')
-      .messages({
-        'any.only': 'Profile must be one of: PPP, SLIP, CSLIP, Shell-User, Telnet-User, Authenticate-Only, Promiscuous'
-      })
   }).min(1)
 };
 
