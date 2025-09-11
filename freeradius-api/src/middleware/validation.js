@@ -185,13 +185,11 @@ const querySchemas = {
   
   username: Joi.object({
     username: Joi.string()
-      .alphanum()
-      .min(3)
+      .min(6)
       .max(64)
       .required()
       .messages({
-        'string.alphanum': 'Username must contain only alphanumeric characters',
-        'string.min': 'Username must be at least 3 characters long',
+        'string.min': 'Username must be at least 6 characters long',
         'string.max': 'Username must not exceed 64 characters',
         'any.required': 'Username is required'
       })
