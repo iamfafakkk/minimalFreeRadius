@@ -6,6 +6,7 @@ class UserModel {
   static async getAll() {
     const query = `
       SELECT DISTINCT 
+        rc.id as id,
         rc.username as user,
         rc.value as password,
         rr.value as profile
@@ -21,6 +22,7 @@ class UserModel {
   static async getByUsername(username) {
     const query = `
       SELECT 
+        rc.id as id,
         rc.username as user,
         rc.value as password,
         rr.value as profile
@@ -29,6 +31,22 @@ class UserModel {
       WHERE rc.username = ? AND rc.attribute = 'Cleartext-Password'
     `;
     const result = await db.query(query, [username]);
+    return result[0] || null;
+  }
+
+  // Get user by ID
+  static async getById(id) {
+    const query = `
+      SELECT 
+        rc.id as id,
+        rc.username as user,
+        rc.value as password,
+        rr.value as profile
+      FROM radcheck rc
+      LEFT JOIN radreply rr ON rc.username = rr.username AND rr.attribute = 'Mikrotik-Group'
+      WHERE rc.id = ? AND rc.attribute = 'Cleartext-Password'
+    `;
+    const result = await db.query(query, [id]);
     return result[0] || null;
   }
 
@@ -42,7 +60,8 @@ class UserModel {
         INSERT INTO radcheck (username, attribute, op, value) 
         VALUES (?, 'Cleartext-Password', ':=', ?)
       `;
-      await connection.execute(checkQuery, [user, password]);
+      const checkResult = await connection.execute(checkQuery, [user, password]);
+      const userId = checkResult[0].insertId;
       
       // Insert into radreply (username and profile)
       const replyQuery = `
@@ -52,6 +71,7 @@ class UserModel {
       await connection.execute(replyQuery, [user, profile]);
       
       return {
+        id: userId,
         user,
         password,
         profile
@@ -114,6 +134,72 @@ class UserModel {
     });
   }
 
+  // Update user by ID
+  static async updateById(id, userData) {
+    const { password, profile } = userData;
+    
+    return await db.transaction(async (connection) => {
+      let updated = false;
+      
+      // Get username from ID first
+      const getUserQuery = `
+        SELECT username FROM radcheck 
+        WHERE id = ? AND attribute = 'Cleartext-Password'
+      `;
+      const userResult = await connection.execute(getUserQuery, [id]);
+      if (userResult[0].length === 0) {
+        return null;
+      }
+      const username = userResult[0][0].username;
+      
+      // Update password if provided
+      if (password) {
+        const checkQuery = `
+          UPDATE radcheck 
+          SET value = ? 
+          WHERE id = ? AND attribute = 'Cleartext-Password'
+        `;
+        const checkResult = await connection.execute(checkQuery, [password, id]);
+        if (checkResult[0].affectedRows > 0) updated = true;
+      }
+      
+      // Update profile if provided
+      if (profile) {
+        // Check if profile entry exists
+        const existsQuery = `
+          SELECT id FROM radreply 
+          WHERE username = ? AND attribute = 'Mikrotik-Group'
+        `;
+        const existsResult = await connection.execute(existsQuery, [username]);
+        
+        if (existsResult[0].length > 0) {
+          // Update existing profile
+          const updateQuery = `
+            UPDATE radreply 
+            SET value = ? 
+            WHERE username = ? AND attribute = 'Mikrotik-Group'
+          `;
+          const updateResult = await connection.execute(updateQuery, [profile, username]);
+          if (updateResult[0].affectedRows > 0) updated = true;
+        } else {
+          // Insert new profile
+          const insertQuery = `
+            INSERT INTO radreply (username, attribute, op, value) 
+            VALUES (?, 'Mikrotik-Group', ':=', ?)
+          `;
+          await connection.execute(insertQuery, [username, profile]);
+          updated = true;
+        }
+      }
+      
+      if (!updated) {
+        return null;
+      }
+      
+      return await this.getById(id);
+    });
+  }
+
   // Delete user
   static async delete(username) {
     return await db.transaction(async (connection) => {
@@ -147,6 +233,7 @@ class UserModel {
   static async search(searchTerm) {
     const query = `
       SELECT DISTINCT 
+        rc.id as id,
         rc.username as user,
         rc.value as password,
         rr.value as profile

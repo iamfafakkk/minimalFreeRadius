@@ -56,6 +56,34 @@ class UserController {
       });
     }
   }
+
+  // Get user by ID
+  static async getById(req, res) {
+    try {
+      const { id } = req.params;
+      const user = await UserModel.getById(id);
+      
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
+      
+      res.json({
+        success: true,
+        message: 'User retrieved successfully',
+        data: user
+      });
+    } catch (error) {
+      console.error('Error getting user by ID:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
   
   // Create new user
   static async create(req, res) {
@@ -125,6 +153,46 @@ class UserController {
       });
     } catch (error) {
       console.error('Error updating user:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
+  // Update user by ID
+  static async updateById(req, res) {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+      
+      // Check if user exists
+      const existingUser = await UserModel.getById(id);
+      if (!existingUser) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
+      
+      // Update user
+      const updatedUser = await UserModel.updateById(id, updateData);
+      
+      if (!updatedUser) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found or no changes made'
+        });
+      }
+      
+      res.json({
+        success: true,
+        message: 'User updated successfully',
+        data: updatedUser
+      });
+    } catch (error) {
+      console.error('Error updating user by ID:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',

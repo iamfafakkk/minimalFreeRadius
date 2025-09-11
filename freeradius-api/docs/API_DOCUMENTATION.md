@@ -128,8 +128,10 @@ Mendapatkan informasi tentang API.
       "users": {
         "list": "GET /api/v1/users",
         "get": "GET /api/v1/users/:username",
+        "getById": "GET /api/v1/users/id/:id",
         "create": "POST /api/v1/users",
         "update": "PUT /api/v1/users/:username",
+        "updateById": "PUT /api/v1/users/id/:id",
         "delete": "DELETE /api/v1/users/:username"
       }
     }
@@ -366,6 +368,7 @@ Authorization: Bearer <jwt-token>
   "message": "Users retrieved successfully",
   "data": [
     {
+      "id": 1,
       "user": "testuser1",
       "password": "password123",
       "profile": "PPP"
@@ -393,6 +396,33 @@ Authorization: Bearer <jwt-token>
   "success": true,
   "message": "User retrieved successfully",
   "data": {
+    "id": 1,
+    "user": "testuser1",
+    "password": "password123",
+    "profile": "PPP"
+  }
+}
+```
+
+### Get User by ID
+
+Mendapatkan user berdasarkan ID.
+
+**Endpoint:** `GET /users/id/:id`
+
+**Example Request:**
+```bash
+GET /api/v1/users/id/1
+Authorization: Bearer <jwt-token>
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "User retrieved successfully",
+  "data": {
+    "id": 1,
     "user": "testuser1",
     "password": "password123",
     "profile": "PPP"
@@ -421,6 +451,7 @@ Membuat user baru.
   "success": true,
   "message": "User created successfully",
   "data": {
+    "id": 2,
     "user": "newuser",
     "password": "newpassword123",
     "profile": "PPP"
@@ -430,7 +461,7 @@ Membuat user baru.
 
 ### Update User
 
-Memperbarui user yang ada.
+Memperbarui user yang ada (legacy endpoint).
 
 **Endpoint:** `PUT /users/:username`
 
@@ -448,6 +479,41 @@ Memperbarui user yang ada.
   "success": true,
   "message": "User updated successfully",
   "data": {
+    "id": 2,
+    "user": "newuser",
+    "password": "updatedpassword123",
+    "profile": "SLIP"
+  }
+}
+```
+
+### Update User by ID
+
+Memperbarui user yang ada berdasarkan ID (recommended).
+
+**Endpoint:** `PUT /users/id/:id`
+
+**Example Request:**
+```bash
+PUT /api/v1/users/id/2
+Authorization: Bearer <jwt-token>
+```
+
+**Request Body:**
+```json
+{
+  "password": "updatedpassword123",
+  "profile": "SLIP"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "User updated successfully",
+  "data": {
+    "id": 2,
     "user": "newuser",
     "password": "updatedpassword123",
     "profile": "SLIP"
@@ -504,6 +570,7 @@ Mendapatkan semua atribut user dari tabel radcheck.
   "success": true,
   "message": "User attributes retrieved successfully",
   "data": {
+    "id": 1,
     "username": "testuser1",
     "attributes": [
       {
@@ -528,6 +595,7 @@ Mendapatkan semua atribut reply user dari tabel radreply.
   "success": true,
   "message": "User reply attributes retrieved successfully",
   "data": {
+    "id": 1,
     "username": "testuser1",
     "reply_attributes": [
       {
@@ -691,6 +759,7 @@ Menghapus atribut kustom dari user.
 
 ```json
 {
+  "id": "integer (auto-generated)",
   "user": "string (3-64 chars, alphanumeric)",
   "password": "string (6-128 chars)",
   "profile": "string (PPP|SLIP|CSLIP|Shell-User|Telnet-User|Authenticate-Only|Promiscuous)"

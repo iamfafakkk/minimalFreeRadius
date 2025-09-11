@@ -6,7 +6,8 @@ const {
   validateUserCreate,
   validateUserUpdate,
   validateUsername,
-  validatePagination
+  validatePagination,
+  validateId
 } = require('../middleware/validation');
 
 // Apply authentication to all user routes
@@ -21,6 +22,9 @@ router.get('/stats', UserController.getStats);
 // GET /api/v1/users/:username - Get user by username
 router.get('/:username', validateUsername, UserController.getByUsername);
 
+// GET /api/v1/users/id/:id - Get user by ID
+router.get('/id/:id', validateId, UserController.getById);
+
 // GET /api/v1/users/:username/attributes - Get user attributes (radcheck)
 router.get('/:username/attributes', validateUsername, UserController.getUserAttributes);
 
@@ -33,8 +37,11 @@ router.post('/', validateUserCreate, UserController.create);
 // POST /api/v1/users/:username/attributes - Add custom attribute to user
 router.post('/:username/attributes', validateUsername, UserController.addAttribute);
 
-// PUT /api/v1/users/:username - Update user
+// PUT /api/v1/users/:username - Update user (legacy)
 router.put('/:username', validateUsername, validateUserUpdate, UserController.update);
+
+// PUT /api/v1/users/id/:id - Update user by ID
+router.put('/id/:id', validateId, validateUserUpdate, UserController.updateById);
 
 // DELETE /api/v1/users/:username - Delete user
 router.delete('/:username', validateUsername, UserController.delete);
