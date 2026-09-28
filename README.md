@@ -3,7 +3,7 @@
 > Instalasi minimal FreeRADIUS dengan REST API untuk manajemen NAS dan user authentication
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js Version](https://img.shields.io/badge/node-%3E%3D16.0.0-brightgreen.svg)](https://nodejs.org/)
+[![Go Version](https://img.shields.io/badge/go-%3E%3D1.18-00ADD8.svg)](https://go.dev/)
 [![MySQL](https://img.shields.io/badge/mysql-%3E%3D5.7-blue.svg)](https://www.mysql.com/)
 
 ## 📖 Deskripsi
@@ -55,8 +55,8 @@ minimalFreeRadius adalah solusi lengkap untuk instalasi dan manajemen FreeRADIUS
 ### Software Requirements
 - **Root access** atau sudo privileges
 - **MySQL 5.7+** atau **MariaDB 10.3+**
-- **Node.js 16.x+** (untuk REST API)
-- **npm** atau **yarn**
+- **Go 1.18+** + **gcc/build-essential** (REST API, CGO untuk driver SQLite)
+- **systemd** (service API dijalankan sebagai unit systemd)
 
 ## 🚀 Panduan Instalasi Lengkap
 
@@ -101,14 +101,16 @@ sudo ./setup.sh
 ```
 
 Script `setup.sh` akan melakukan:
-1. ✅ Cek system requirements (Node.js, npm, MySQL)
-2. 📦 Install dependencies Node.js
-3. ⚙️ Setup environment file (.env)
+1. ✅ Cek system requirements (Go, gcc, MySQL)
+2. 📦 Download Go modules
+3. ⚙️ Setup environment file (.env, JWT secret di-generate)
 4. 📁 Buat direktori yang diperlukan
-5. 🔥 Konfigurasi firewall untuk port 3000
-6. 🗄️ Inisialisasi database (opsional)
-7. 🚀 Setup systemd service untuk mengelola API
-8. ✅ Health check untuk memastikan API berjalan
+5. 🏗️ Build binary Go (`CGO_ENABLED=1 go build`)
+6. 🗄️ Verifikasi schema database (dibuat `install.sh`)
+7. 🖥️ Build frontend web (bila `npm` tersedia)
+8. 🔥 Buka port API di UFW (bila UFW aktif)
+9. 🚀 Install + start systemd service `freeradius-api`
+10. ✅ Health check endpoint
 
 **Opsi Setup yang Tersedia:**
 ```bash
@@ -118,13 +120,19 @@ sudo ./setup.sh
 # Hanya cek requirements
 ./setup.sh --check-only
 
-# Hanya install dependencies
+# Hanya download modules
 ./setup.sh --install-only
 
-# Hanya setup systemd service
+# Hanya build binary
+./setup.sh --build-only
+
+# Hanya verifikasi schema database
+./setup.sh --db-only
+
+# Hanya install systemd service (build dulu)
 sudo ./setup.sh --systemd-only
 
-# Setup tanpa auto-start service
+# Install tanpa auto-start
 sudo ./setup.sh --no-start
 
 # Hapus systemd service
@@ -461,8 +469,9 @@ Proyek ini dilisensikan di bawah MIT License - lihat file [LICENSE](LICENSE) unt
 
 - [FreeRADIUS Project](https://freeradius.org/) untuk server RADIUS yang powerful
 - [MySQL](https://www.mysql.com/) untuk database backend
-- [Node.js](https://nodejs.org/) untuk REST API framework
-- [Express.js](https://expressjs.com/) untuk web application framework
+- [Go](https://go.dev/) untuk REST API
+- [chi](https://github.com/go-chi/chi) untuk routing HTTP
+- [SvelteKit](https://svelte.dev/) + [shadcn-svelte](https://shadcn-svelte.com/) untuk panel web
 
 ---
 

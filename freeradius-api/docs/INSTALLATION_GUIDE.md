@@ -4,154 +4,50 @@
 
 ### System Requirements
 
-- **Operating System:** Linux (Ubuntu 18.04+, CentOS 7+, Debian 9+)
-- **Node.js:** Version 16.x atau lebih baru
+- **Operating System:** Linux (Ubuntu 20.04+/Debian 11+)
+- **Go:** Version 1.18 atau lebih baru
+- **C toolchain:** gcc + build-essential (CGO, driver SQLite)
 - **MySQL:** Version 5.7+ atau MariaDB 10.3+
+- **systemd:** wajib (service dijalankan sebagai unit systemd)
 - **Memory:** Minimum 512MB RAM
 - **Storage:** Minimum 1GB free space
 
 ### Required Software
 
-1. **Node.js dan npm**
+1. **Go + build tools**
    ```bash
    # Ubuntu/Debian
-   curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-   sudo apt-get install -y nodejs
-   
-   # CentOS/RHEL
-   curl -fsSL https://rpm.nodesource.com/setup_18.x | sudo bash -
-   sudo yum install -y nodejs
+   sudo apt-get update
+   sudo apt-get install -y golang-go build-essential
    ```
 
 2. **MySQL/MariaDB**
    ```bash
    # Ubuntu/Debian
-   sudo apt-get update
-   sudo apt-get install mysql-server
-   
-   # CentOS/RHEL
-   sudo yum install mysql-server
-   sudo systemctl start mysqld
-   sudo systemctl enable mysqld
+   sudo apt-get install -y mysql-server
    ```
 
 3. **Git**
    ```bash
-   # Ubuntu/Debian
-   sudo apt-get install git
-   
-   # CentOS/RHEL
-   sudo yum install git
+   sudo apt-get install -y git
    ```
+
+> Untuk instalasi RADIUS + MySQL + schema lengkap, jalankan `install.sh` di
+> root repo (lihat [README](../../README.md)). Panduan ini fokus pada panel API.
 
 ## Database Setup
 
-### 1. Create Database and User
+Database `radius`, user `radius`, dan schema FreeRADIUS dibuat oleh `install.sh`
+(root repo) dengan schema resmi MySQL dari
+`/etc/freeradius/3.0/mods-config/sql/main/mysql/schema.sql` — mencakup
+`nas`, `radcheck`, `radreply`, `radacct`, dan `radpostauth`.
 
-```sql
--- Login ke MySQL sebagai root
-mysql -u root -p
-
--- Buat database
-CREATE DATABASE radius;
-
--- Buat user untuk FreeRADIUS
-CREATE USER 'radius'@'localhost' IDENTIFIED BY 'radiuspass123!';
-GRANT ALL PRIVILEGES ON radius.* TO 'radius'@'localhost';
-FLUSH PRIVILEGES;
-
--- Keluar dari MySQL
-EXIT;
+```bash
+# Di root repo
+sudo ./install.sh
 ```
 
-### 2. Create FreeRADIUS Tables
-
-```sql
--- Login dengan user radius
-mysql -u radius -p radius
-
--- Buat tabel nas
-CREATE TABLE nas (
-  id int(10) NOT NULL AUTO_INCREMENT,
-  nasname varchar(128) NOT NULL,
-  shortname varchar(32),
-  type varchar(30) DEFAULT 'other',
-  ports int(5),
-  secret varchar(60) DEFAULT 'secret' NOT NULL,
-  server varchar(64),
-  community varchar(50),
-  description varchar(200) DEFAULT 'RADIUS Client',
-  PRIMARY KEY (id),
-  KEY nasname (nasname)
-);
-
--- Buat tabel radcheck
-CREATE TABLE radcheck (
-  id int(11) unsigned NOT NULL AUTO_INCREMENT,
-  username varchar(64) NOT NULL DEFAULT '',
-  attribute varchar(64) NOT NULL DEFAULT '',
-  op char(2) NOT NULL DEFAULT '==',
-  value varchar(253) NOT NULL DEFAULT '',
-  PRIMARY KEY (id),
-  KEY username (username(32))
-);
-
--- Buat tabel radreply
-CREATE TABLE radreply (
-  id int(11) unsigned NOT NULL AUTO_INCREMENT,
-  username varchar(64) NOT NULL DEFAULT '',
-  attribute varchar(64) NOT NULL DEFAULT '',
-  op char(2) NOT NULL DEFAULT '=',
-  value varchar(253) NOT NULL DEFAULT '',
-  PRIMARY KEY (id),
-  KEY username (username(32))
-);
-
--- Buat tabel radgroupcheck (optional)
-CREATE TABLE radgroupcheck (
-  id int(11) unsigned NOT NULL AUTO_INCREMENT,
-  groupname varchar(64) NOT NULL DEFAULT '',
-  attribute varchar(64) NOT NULL DEFAULT '',
-  op char(2) NOT NULL DEFAULT '==',
-  value varchar(253) NOT NULL DEFAULT '',
-  PRIMARY KEY (id),
-  KEY groupname (groupname(32))
-);
-
--- Buat tabel radgroupreply (optional)
-CREATE TABLE radgroupreply (
-  id int(11) unsigned NOT NULL AUTO_INCREMENT,
-  groupname varchar(64) NOT NULL DEFAULT '',
-  attribute varchar(64) NOT NULL DEFAULT '',
-  op char(2) NOT NULL DEFAULT '=',
-  value varchar(253) NOT NULL DEFAULT '',
-  PRIMARY KEY (id),
-  KEY groupname (groupname(32))
-);
-
--- Buat tabel radusergroup (optional)
-CREATE TABLE radusergroup (
-  username varchar(64) NOT NULL DEFAULT '',
-  groupname varchar(64) NOT NULL DEFAULT '',
-  priority int(11) NOT NULL DEFAULT '1',
-  KEY username (username(32))
-);
-
--- Insert sample data
-INSERT INTO nas (nasname, shortname, type, ports, secret, description) VALUES
-('127.0.0.1', 'localhost', 'other', 1812, 'testing123', 'Local test server'),
-('192.168.1.1', 'router1', 'cisco', 1812, 'secret123', 'Main router');
-
-INSERT INTO radcheck (username, attribute, op, value) VALUES
-('testuser', 'Cleartext-Password', ':=', 'testpass'),
-('admin', 'Cleartext-Password', ':=', 'admin123!');
-
-INSERT INTO radreply (username, attribute, op, value) VALUES
-('testuser', 'Framed-Protocol', ':=', 'PPP'),
-('admin', 'Framed-Protocol', ':=', 'PPP');
-
-EXIT;
-```
+`setup.sh` hanya **memverifikasi** schema, tidak membuat/menghapus tabel.
 
 ## Application Installation
 
@@ -170,7 +66,7 @@ cd freeradius-api
 ### 2. Install Dependencies
 
 ```bash
-npm install
+go mod download
 ```
 
 ### 3. Configure Environment
@@ -198,6 +94,30 @@ NODE_ENV=production
 
 # JWT Configuration
 JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+```
+
+### 4. Build & Install Service (systemd)
+
+```bash
+# Build + install unit freeradius-api.service + start + health check
+sudo ./setup.sh
+```
+
+Opsi lain:
+
+```bash
+CGO_ENABLED=1 go build -o freeradius-api .   # build saja
+sudo ./setup.sh --no-start                    # install service tanpa start
+sudo ./setup.sh --systemd-only                # build + install service saja
+sudo ./setup.sh --remove-systemd              # hapus service
+```
+
+### 5. Build Frontend (opsional)
+
+Backend menyajikan build statis dari `../freeradius-web/build`:
+
+```bash
+cd ../freeradius-web && npm install && npm run build
 ```
 
 ## Reverse Proxy Setup (Nginx)
@@ -326,30 +246,18 @@ echo "JWT_SECRET=$JWT_SECRET" >> .env
 
 # Set proper file permissions
 chmod 600 .env
-chown www-data:www-data .env
+chown root:root .env
 ```
 
 ## Monitoring and Logging
 
-### 1. Log Rotation
+### 1. Log Rotation (journald)
 
-```bash
-# Create logrotate configuration
-sudo tee /etc/logrotate.d/freeradius-api > /dev/null << 'EOF'
-/opt/freeradius-api/logs/*.log {
-    daily
-    missingok
-    rotate 52
-    compress
-    delaycompress
-    notifempty
-    create 644 www-data www-data
-    postrotate
-        systemctl reload freeradius-api
-    endscript
-}
-EOF
-```
+Service menulis ke journald (`StandardOutput=journal`), bukan file aplikasi.
+Batasi umur log di `/etc/systemd/journald.conf` (mis. `SystemMaxUse=200M`,
+`MaxRetentionSec=2week`) lalu `sudo systemctl restart systemd-journald`.
+
+Radius log punya logrotate sendiri dari paket FreeRADIUS.
 
 ### 2. Health Monitoring
 
@@ -398,13 +306,8 @@ curl -X GET http://localhost:3000/api/v1/nas \
 ### 3. Database Connection Test
 
 ```bash
-# Test database connectivity
-node -e "
-const db = require('./src/config/database');
-db.testConnection()
-  .then(() => console.log('✓ Database connection successful'))
-  .catch(err => console.error('✗ Database connection failed:', err.message));
-"
+# Test koneksi database (kredensial dari .env)
+mysql -h"${DB_HOST:-localhost}" -u"${DB_USER:-radius}" -p"${DB_PASSWORD:-radiuspass123!}" "${DB_NAME:-radius}" -e "SELECT COUNT(*) FROM radcheck;"
 ```
 
 ## Troubleshooting
@@ -431,8 +334,8 @@ db.testConnection()
 
 3. **Permission Denied**
    ```bash
-   # Fix file permissions
-   sudo chown -R www-data:www-data /opt/freeradius-api
+   # Fix file permissions (service berjalan sebagai root/freerad)
+   sudo chown -R root:root /opt/freeradius-api
    sudo chmod -R 755 /opt/freeradius-api
    sudo chmod 600 /opt/freeradius-api/.env
    ```
@@ -451,21 +354,18 @@ db.testConnection()
 
 ### Log Locations
 
-- **Application Logs:** `/opt/freeradius-api/logs/`
-- **PM2 Logs:** `~/.pm2/logs/`
+- **API Logs:** `journalctl -u freeradius-api`
 - **Nginx Logs:** `/var/log/nginx/`
 - **MySQL Logs:** `/var/log/mysql/`
+- **FreeRADIUS Log:** `/var/log/freeradius/radius.log`
 - **System Logs:** `/var/log/syslog`
 
 ### Performance Tuning
 
-1. **Node.js Optimization**
+1. **Go Build**
    ```bash
-   # Set NODE_ENV to production
-   export NODE_ENV=production
-   
-   # Increase memory limit if needed
-   node --max-old-space-size=4096 server.js
+   # Build binary teroptimasi
+   CGO_ENABLED=1 go build -ldflags="-s -w" -o freeradius-api .
    ```
 
 2. **MySQL Optimization**
@@ -516,7 +416,8 @@ echo "0 2 * * * /usr/local/bin/backup-radius-db.sh" | crontab -
 ```bash
 # Backup application files
 tar -czf /opt/backups/freeradius-api_$(date +%Y%m%d).tar.gz \
-  --exclude=node_modules \
+  --exclude=freeradius-api \
+  --exclude=freeradius.db \
   --exclude=logs \
   /opt/freeradius-api
 ```

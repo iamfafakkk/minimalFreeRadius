@@ -46,63 +46,19 @@ go build -o freeradius-api .
 ./freeradius-api
 ```
 
-Atau setup otomatis (env, DB, systemd):
+Atau setup otomatis (env, build, verifikasi DB, systemd):
 
 ```bash
-./setup.sh
+sudo ./setup.sh
 ```
 
 ### 3. Setup Database
 
-```sql
--- Buat database dan user
-CREATE DATABASE radius;
-CREATE USER 'radius'@'localhost' IDENTIFIED BY 'radiuspass123!';
-GRANT ALL PRIVILEGES ON radius.* TO 'radius'@'localhost';
-FLUSH PRIVILEGES;
-```
-
-```sql
--- Buat tabel yang diperlukan
-USE radius;
-
--- Tabel NAS
-CREATE TABLE nas (
-  id int(10) NOT NULL AUTO_INCREMENT,
-  nasname varchar(128) NOT NULL,
-  shortname varchar(32),
-  type varchar(30) DEFAULT 'other',
-  ports int(5),
-  secret varchar(60) DEFAULT 'secret' NOT NULL,
-  server varchar(64),
-  community varchar(50),
-  description varchar(200) DEFAULT 'RADIUS Client',
-  PRIMARY KEY (id),
-  KEY nasname (nasname)
-);
-
--- Tabel radcheck
-CREATE TABLE radcheck (
-  id int(11) unsigned NOT NULL AUTO_INCREMENT,
-  username varchar(64) NOT NULL DEFAULT '',
-  attribute varchar(64) NOT NULL DEFAULT '',
-  op char(2) NOT NULL DEFAULT '==',
-  value varchar(253) NOT NULL DEFAULT '',
-  PRIMARY KEY (id),
-  KEY username (username(32))
-);
-
--- Tabel radreply
-CREATE TABLE radreply (
-  id int(11) unsigned NOT NULL AUTO_INCREMENT,
-  username varchar(64) NOT NULL DEFAULT '',
-  attribute varchar(64) NOT NULL DEFAULT '',
-  op char(2) NOT NULL DEFAULT '=',
-  value varchar(253) NOT NULL DEFAULT '',
-  PRIMARY KEY (id),
-  KEY username (username(32))
-);
-```
+Database `radius`, user `radius`, dan schema FreeRADIUS (schema resmi
+`/etc/freeradius/3.0/mods-config/sql/main/mysql/schema.sql`, termasuk
+`radcheck`, `radreply`, `nas`, `radacct`, `radpostauth`) dibuat oleh
+`install.sh` di root repo. Jalankan itu lebih dulu; `setup.sh` hanya
+memverifikasi schema.
 
 ### 4. Konfigurasi Environment
 
@@ -130,14 +86,27 @@ ADMIN_USERNAME=admin
 ADMIN_PASSWORD=admin123!
 ```
 
-### 5. Jalankan Aplikasi
+### 5. Jalankan Aplikasi (systemd)
 
 ```bash
-# Development mode
-npm run dev
+# Build + install service + start + health check
+sudo ./setup.sh
+```
 
-# Production mode
-npm start
+Service dikelola systemd (wajib). Perintah manual:
+
+```bash
+CGO_ENABLED=1 go build -o freeradius-api .   # build saja
+sudo ./setup.sh --no-start                    # install service tanpa start
+```
+
+### 6. Build Frontend (opsional, panel web)
+
+Backend menyajikan hasil `npm run build` dari `../freeradius-web/build`; kalau
+belum ada, panel jalan API-only. `setup.sh` membangunnya otomatis bila npm ada.
+
+```bash
+cd ../freeradius-web && npm install && npm run build
 ```
 
 ## 📚 Dokumentasi
@@ -218,97 +187,56 @@ curl -X POST http://localhost:3000/api/v1/users \
 
 ```
 freeradius-api/
-├── src/
-│   ├── config/
-│   │   └── database.js          # Konfigurasi database
-│   ├── controllers/
-│   │   ├── authController.js    # Controller autentikasi
-│   │   ├── nasController.js     # Controller NAS
-│   │   └── userController.js    # Controller user
-│   ├── middleware/
-│   │   ├── auth.js             # Middleware autentikasi
-│   │   └── validation.js       # Middleware validasi
-│   ├── models/
-│   │   ├── NasModel.js         # Model NAS
-│   │   └── UserModel.js        # Model user
-│   ├── routes/
-│   │   ├── authRoutes.js       # Routes autentikasi
-│   │   ├── nasRoutes.js        # Routes NAS
-│   │   └── userRoutes.js       # Routes user
-│   └── utils/
-├── docs/
-│   ├── API_DOCUMENTATION.md    # Dokumentasi API
-│   └── INSTALLATION_GUIDE.md   # Panduan instalasi
-├── logs/                       # Directory log
-├── .env                        # Environment variables
-├── .env.example               # Contoh environment
-├── package.json               # Dependencies
-├── server.js                  # Entry point
-└── README.md                  # File ini
+├── internal/
+│   ├── appdb/          # SQLite app DB (admin login, login history, audit)
+│   ├── config/         # Konfigurasi env + resolusi WebDir
+│   ├── database/       # Koneksi MySQL
+│   ├── handlers/       # Handler HTTP (auth, nas, users, system, radius log)
+│   ├── middleware/     # Auth, rate limit, security headers, activity log
+│   ├── models/         # Tipe data NAS/user
+│   ├── radiox/         # Tailer radius.log (SSE) + counters
+│   └── router/         # Routing chi + penyajian SPA
+├── database/           # mysql.cnf (client config)
+├── docs/               # Dokumentasi + aset Swagger UI
+├── nginx/nginx.conf    # Contoh reverse proxy (opsional)
+├── main.go             # Entry point
+├── setup.sh            # Setup env + build + systemd
+├── swagger.json        # OpenAPI spec
+├── .env.example        # Contoh environment
+└── README.md           # File ini
 ```
 
 ## 🔒 Keamanan
 
 - **JWT Authentication** - Token berbasis keamanan
 - **API Key Support** - Alternatif autentikasi
-- **Rate Limiting** - 100 requests per 15 menit per IP
-- **Input Validation** - Validasi semua input menggunakan Joi
+- **Rate Limiting** - 1000 requests per 15 menit per IP (fixed-window)
+- **Input Validation** - Validasi manual (setara aturan Joi sebelumnya)
 - **CORS Protection** - Konfigurasi CORS yang aman
-- **Security Headers** - Helmet.js untuk security headers
-- **Password Hashing** - Bcrypt untuk hash password (jika diperlukan)
+- **Security Headers** - CSP ketat, dibangun di middleware
+- **Password Hashing** - bcrypt untuk akun admin panel
 
 ## 🚀 Deployment
 
-### Menggunakan PM2
+Wajib systemd. `setup.sh` membuat unit `freeradius-api.service`, enable saat
+boot, lalu start.
 
 ```bash
-# Install PM2
-npm install -g pm2
-
-# Start aplikasi
-pm2 start server.js --name freeradius-api
-
-# Monitor
-pm2 monit
-
-# Logs
-pm2 logs freeradius-api
+sudo ./setup.sh                  # build + install + start
+sudo ./setup.sh --systemd-only   # build + install service saja
+sudo ./setup.sh --no-start       # install tanpa start
+sudo ./setup.sh --remove-systemd # stop + disable + hapus
 ```
-
-### Menggunakan Docker
 
 ```bash
-# Build image
-docker build -t freeradius-api .
-
-# Run container
-docker run -d \
-  --name freeradius-api \
-  -p 3000:3000 \
-  -e DB_HOST=your-db-host \
-  -e DB_USER=radius \
-  -e DB_PASSWORD=radiuspass123! \
-  freeradius-api
+sudo systemctl status freeradius-api
+sudo systemctl restart freeradius-api
+journalctl -u freeradius-api -f
 ```
 
-### Menggunakan Docker Compose
-
-```bash
-# Start semua services
-docker-compose up -d
-
-# Check logs
-docker-compose logs -f
-```
-
-### Menggunakan Nginx Reverse Proxy dengan Cloudflare SSL
-
-```bash
-# Jalankan setup script dengan opsi nginx-only
-./setup.sh --nginx-only
-
-# Ikuti petunjuk untuk mengkonfigurasi domain dan mode SSL Cloudflare
-```
+Nginx/Cloudflare SSL dapat ditambahkan sebagai reverse proxy di depan service
+(bind ke port API); konfigurasi contoh ada di `nginx/nginx.conf`. Tidak ada
+opsi `--nginx-only` di `setup.sh`.
 
 ## 📊 Monitoring
 
@@ -325,20 +253,20 @@ curl http://localhost:3000/api/v1/auth/health
   "message": "API is healthy",
   "data": {
     "status": "healthy",
-    "timestamp": "2024-01-01T12:00:00.000Z",
+    "timestamp": "2024-01-01T12:00:00Z",
     "uptime": 3600,
     "database": "connected",
     "memory_usage": {...},
-    "node_version": "v18.17.0"
+    "go_version": "go1.18.1"
   }
 }
 ```
 
 ### Log Files
 
-- **Application Logs:** `logs/app.log`
-- **Error Logs:** `logs/error.log`
-- **Access Logs:** `logs/access.log`
+- **Service logs:** `journalctl -u freeradius-api`
+- **Radius log (Live Logs page):** `/var/log/freeradius/radius.log`
+- **Installation log:** `/tmp/freeradius_install.log`
 
 ## 🔧 Konfigurasi
 
@@ -361,14 +289,19 @@ curl http://localhost:3000/api/v1/auth/health
 | `CORS_ORIGIN` | CORS origin | `*` |
 | `ADMIN_USERNAME` | Admin username | `admin` |
 | `ADMIN_PASSWORD` | Admin password | - |
+| `APP_DB_PATH` | SQLite app DB (login, audit) | `freeradius.db` |
+| `RADIUS_LOG` | FreeRADIUS log yang di-tail | `/var/log/freeradius/radius.log` |
+| `RADIUS_TEST_ADDR` | Target auth test | `127.0.0.1:1812` |
+| `RADIUS_TEST_SECRET` | Secret client untuk auth test | `testing123` |
+| `FREERADIUS_RELOAD_CMD` | Dijalankan setelah NAS berubah | `systemctl restart freeradius` |
 
 ## 🐛 Troubleshooting
 
 ### Database Connection Issues
 
 ```bash
-# Test database connection
-node -e "const db = require('./src/config/database'); db.testConnection().then(() => console.log('OK')).catch(console.error);"
+# Test koneksi database (kredensial dari .env)
+mysql -h"${DB_HOST:-localhost}" -u"${DB_USER:-radius}" -p"${DB_PASSWORD:-radiuspass123!}" "${DB_NAME:-radius}" -e "SELECT 1;"
 ```
 
 ### Port Already in Use

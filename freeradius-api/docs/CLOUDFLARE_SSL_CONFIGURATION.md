@@ -15,23 +15,20 @@ Cloudflare offers three SSL modes for securing traffic between visitors and your
 - A domain name pointed to Cloudflare nameservers
 - Cloudflare account with your domain added
 - FreeRADIUS API installed and running
-- Nginx configured as a reverse proxy (using the provided setup script)
+- Nginx installed and configured as a reverse proxy (see `nginx/nginx.conf`)
 
 ## Configuration Steps
 
-### 1. Run the Setup Script with Nginx Configuration
+### 1. Configure Nginx as Reverse Proxy
+
+`setup.sh` tidak mengonfigurasi Nginx; API di-deploy sebagai service systemd
+(`freeradius-api`, default `127.0.0.1:3000`). Gunakan `nginx/nginx.conf` sebagai
+titik awal, sesuaikan `server_name` dan mode SSL, lalu:
 
 ```bash
-# Navigate to the FreeRADIUS API directory
-cd /path/to/freeradius-api
-
-# Run the setup script with nginx-only option
-./setup.sh --nginx-only
+sudo cp nginx/nginx.conf /etc/nginx/conf.d/freeradius-api.conf
+sudo nginx -t && sudo systemctl reload nginx
 ```
-
-During the setup, you'll be prompted to:
-1. Enter your domain name
-2. Select your preferred Cloudflare SSL mode
 
 ### 2. Configure Cloudflare SSL/TLS Settings
 
