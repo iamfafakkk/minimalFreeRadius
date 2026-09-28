@@ -1,6 +1,6 @@
-# FreeRADIUS REST API
+# FreeRADIUS REST API (Go)
 
-REST API untuk mengelola FreeRADIUS server dengan fitur CRUD untuk NAS (Network Access Server) dan manajemen user.
+REST API untuk mengelola FreeRADIUS server dengan fitur CRUD untuk NAS (Network Access Server) dan manajemen user. Port Go dari implementasi Node.js/Express sebelumnya — kontrak endpoint dan bentuk respons JSON dipertahankan.
 
 ## 🚀 Fitur Utama
 
@@ -8,16 +8,16 @@ REST API untuk mengelola FreeRADIUS server dengan fitur CRUD untuk NAS (Network 
 - **CRUD Operations untuk User** - Kelola user authentication (radcheck & radreply)
 - **JWT Authentication** - Keamanan berbasis token
 - **API Key Authentication** - Alternatif autentikasi
-- **Input Validation** - Validasi data menggunakan Joi
-- **Rate Limiting** - Perlindungan dari abuse
+- **Input Validation** - Validasi manual setara aturan Joi sebelumnya
+- **Rate Limiting** - Perlindungan dari abuse (fixed-window per-IP)
 - **CORS Support** - Cross-origin resource sharing
 - **Comprehensive Logging** - Log sistem yang lengkap
 - **Health Check** - Monitoring kesehatan API
-- **Documentation** - Dokumentasi API yang lengkap
+- **Documentation** - Dokumentasi API yang lengkap (`swagger.json`, `/docs`)
 
 ## 📋 Persyaratan Sistem
 
-- **Node.js** 16.x atau lebih baru
+- **Go** 1.18 atau lebih baru
 - **MySQL** 5.7+ atau MariaDB 10.3+
 - **Linux** (Ubuntu 18.04+, CentOS 7+, Debian 9+)
 - **Memory** Minimum 512MB RAM
@@ -35,7 +35,21 @@ cd freeradius-api
 ### 2. Install Dependencies
 
 ```bash
-npm install
+go mod download
+```
+
+### 3. Build & Run
+
+```bash
+cp .env.example .env   # sesuaikan kredensial DB
+go build -o freeradius-api .
+./freeradius-api
+```
+
+Atau setup otomatis (env, DB, systemd):
+
+```bash
+./setup.sh
 ```
 
 ### 3. Setup Database
