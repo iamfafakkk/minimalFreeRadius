@@ -650,7 +650,7 @@ EOF
         sed -ri "/^\s*${section}\s*\{/,/^\s*\}/ s/^\s*#\s*sql\s*$/\tsql/" /etc/freeradius/3.0/sites-available/inner-tunnel
     done
 
-    show_progress 5 7 "Disabling realm/suffix (username utuh user@domain)..."
+    show_progress 5 7 "Disabling realm/suffix + filter_username (username utuh user@domain)..."
     # Matikan fungsi realm/suffix agar username utuh tidak di-proxy.
     # SQL-User-Name akan tetap mis. olt-fajar.jb@dsnet (tanpa stripping @realm).
     # sites-enabled/default dan sites-enabled/inner-tunnel adalah symlink ke
@@ -668,6 +668,24 @@ EOF
         sed -ri 's/^([[:space:]]*)suffix[[:space:]]*$/\1# suffix/' /etc/freeradius/3.0/sites-available/default /etc/freeradius/3.0/sites-available/inner-tunnel 2>/dev/null || true
     fi
     log_message "Realm/suffix module disabled in default and inner-tunnel authorize"
+
+    # filter_username (policy.d/filter) menolak User-Name ber-"@" yang bagian
+    # setelah "@" tidak punya titik (mis. "olt-oltkit@dsnet") dengan pesan
+    # "Realm does not have at least one dot separator". Karena "@" di sini
+    # karakter biasa, bukan realm, aturan itu harus dimatikan — kalau tidak,
+    # semua login dengan "@" gagal "radius timeout" di NAS.
+    _filter_file=/etc/freeradius/3.0/policy.d/filter
+    if [ -f "$_filter_file" ]; then
+        # Ganti kondisi if jadi "if (0)" agar blok tetap valid secara sintaks
+        # (baris yang diubah saja) — idempotent bila dijalankan ulang.
+        sed -ri 's|if \(\(&User-Name =~ /@/\) && \(&User-Name !~ /@\(\.\+\)\\\.\(\.\+\)\$/\)\)|if (0)|' "$_filter_file" 2>/dev/null || true
+        if grep -q 'User-Name !~ /@(.+)\.(.+)\$/' "$_filter_file"; then
+            print_message $YELLOW "⚠️  Peringatan: filter_username masih menolak realm tanpa titik di $_filter_file"
+            log_message "WARNING: filter_username realm-dot rule still active"
+        else
+            log_message "filter_username realm-dot rule disabled (allow @ usernames)"
+        fi
+    fi
 
     show_progress 6 7 "Minimalizing proxy.conf (hanya realm LOCAL)..."
     # Pastikan tidak ada definisi realm dsnet/dsnetwork yang nyisa.
