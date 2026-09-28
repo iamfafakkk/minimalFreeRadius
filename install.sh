@@ -687,6 +687,23 @@ EOF
         fi
     fi
 
+    # radiusd.conf: log { auth = no } (default) membuat FreeRADIUS TIDAK menulis
+    # baris Accept/Reject ("Login OK"/"Login incorrect") ke radius.log, sehingga
+    # halaman Radius Logs panel tampak kosong. Nyalakan agar log auth terisi.
+    _radiusd_conf=/etc/freeradius/3.0/radiusd.conf
+    if [ -f "$_radiusd_conf" ]; then
+        if [ ! -f "${_radiusd_conf}.backup" ]; then
+            cp "$_radiusd_conf" "${_radiusd_conf}.backup" 2>/dev/null || true
+        fi
+        if grep -qE '^[[:space:]]*auth[[:space:]]*=[[:space:]]*no[[:space:]]*$' "$_radiusd_conf"; then
+            sed -ri 's/^([[:space:]]*)auth([[:space:]]*=[[:space:]]*)no([[:space:]]*)$/\1auth\2yes\3/' "$_radiusd_conf" 2>/dev/null || true
+            log_message "radiusd.conf log { auth = yes } (write Accept/Reject to radius.log)"
+        fi
+        if grep -qE '^[[:space:]]*auth[[:space:]]*=[[:space:]]*no[[:space:]]*$' "$_radiusd_conf"; then
+            print_message $YELLOW "⚠️  Peringatan: log { auth } masih no di $_radiusd_conf, Radius Logs tidak akan terisi"
+        fi
+    fi
+
     show_progress 6 7 "Minimalizing proxy.conf (hanya realm LOCAL)..."
     # Pastikan tidak ada definisi realm dsnet/dsnetwork yang nyisa.
     # Backup sekali saja, lalu tulis minimal proxy.conf.
