@@ -35,13 +35,18 @@ const userSelect = `
 	LEFT JOIN radreply rr ON rc.username = rr.username AND rr.attribute = 'Mikrotik-Group'
 	WHERE rc.attribute = 'Cleartext-Password'`
 
-func GetAllUsers(search string) ([]*RadiusUser, error) {
-	q := userSelect + " ORDER BY rc.username"
+func GetAllUsers(search, profile string) ([]*RadiusUser, error) {
+	q := userSelect
 	args := []interface{}{}
 	if search != "" {
-		q = userSelect + " AND rc.username LIKE ? ORDER BY rc.username"
+		q += " AND rc.username LIKE ?"
 		args = append(args, "%"+search+"%")
 	}
+	if profile != "" {
+		q += " AND rr.value LIKE ?"
+		args = append(args, "%"+profile+"%")
+	}
+	q += " ORDER BY rc.username"
 	rows, err := database.DB.Query(q, args...)
 	if err != nil {
 		return nil, err
@@ -88,7 +93,7 @@ func UserExists(username string) (bool, error) {
 
 func CreateUser(username, password, profile string) (*RadiusUser, error) {
 	if profile == "" {
-		profile = "PPP"
+		profile = "default"
 	}
 	var id int64
 	err := database.WithTx(func(tx *sql.Tx) error {

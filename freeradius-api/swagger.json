@@ -455,7 +455,8 @@
         "parameters": [
           { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
           { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 10 } },
-          { "name": "search", "in": "query", "description": "Match username", "schema": { "type": "string" } }
+          { "name": "search", "in": "query", "description": "Match username", "schema": { "type": "string" } },
+          { "name": "profile", "in": "query", "description": "Filter by Mikrotik-Group (PPP profile) value", "schema": { "type": "string" } }
         ],
         "responses": {
           "200": {

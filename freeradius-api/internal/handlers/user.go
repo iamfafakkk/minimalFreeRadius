@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/iamfafakkk/minimalFreeRadius/freeradius-api/internal/models"
 	"github.com/iamfafakkk/minimalFreeRadius/freeradius-api/internal/validation"
 )
@@ -16,7 +15,8 @@ func NewUserHandler() *UserHandler { return &UserHandler{} }
 func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
 	page, limit := QueryPageLimit(r)
 	search := r.URL.Query().Get("search")
-	items, err := models.GetAllUsers(search)
+	profile := r.URL.Query().Get("profile")
+	items, err := models.GetAllUsers(search, profile)
 	if err != nil {
 		WriteInternal(w, "Internal server error", err)
 		return
@@ -42,7 +42,7 @@ func (h *UserHandler) Stats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) GetByUsername(w http.ResponseWriter, r *http.Request) {
-	username := chi.URLParam(r, "username")
+	username := PathParam(r, "username")
 	if errs := validation.ValidateUsernameParam(username); len(errs) > 0 {
 		WriteJSON(w, http.StatusBadRequest, map[string]interface{}{"success": false, "message": "Validation error", "errors": errs})
 		return
@@ -114,7 +114,7 @@ func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
-	username := chi.URLParam(r, "username")
+	username := PathParam(r, "username")
 	if errs := validation.ValidateUsernameParam(username); len(errs) > 0 {
 		WriteJSON(w, http.StatusBadRequest, map[string]interface{}{"success": false, "message": "Validation error", "errors": errs})
 		return
@@ -222,7 +222,7 @@ func (h *UserHandler) UpdateByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	username := chi.URLParam(r, "username")
+	username := PathParam(r, "username")
 	if errs := validation.ValidateUsernameParam(username); len(errs) > 0 {
 		WriteJSON(w, http.StatusBadRequest, map[string]interface{}{"success": false, "message": "Validation error", "errors": errs})
 		return
@@ -249,7 +249,7 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) Attributes(w http.ResponseWriter, r *http.Request) {
-	username := chi.URLParam(r, "username")
+	username := PathParam(r, "username")
 	if errs := validation.ValidateUsernameParam(username); len(errs) > 0 {
 		WriteJSON(w, http.StatusBadRequest, map[string]interface{}{"success": false, "message": "Validation error", "errors": errs})
 		return
@@ -278,7 +278,7 @@ func (h *UserHandler) Attributes(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) ReplyAttributes(w http.ResponseWriter, r *http.Request) {
-	username := chi.URLParam(r, "username")
+	username := PathParam(r, "username")
 	if errs := validation.ValidateUsernameParam(username); len(errs) > 0 {
 		WriteJSON(w, http.StatusBadRequest, map[string]interface{}{"success": false, "message": "Validation error", "errors": errs})
 		return
@@ -307,7 +307,7 @@ func (h *UserHandler) ReplyAttributes(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) AddAttribute(w http.ResponseWriter, r *http.Request) {
-	username := chi.URLParam(r, "username")
+	username := PathParam(r, "username")
 	if errs := validation.ValidateUsernameParam(username); len(errs) > 0 {
 		WriteJSON(w, http.StatusBadRequest, map[string]interface{}{"success": false, "message": "Validation error", "errors": errs})
 		return
@@ -360,7 +360,7 @@ func (h *UserHandler) AddAttribute(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) RemoveAttribute(w http.ResponseWriter, r *http.Request) {
-	username := chi.URLParam(r, "username")
+	username := PathParam(r, "username")
 	if errs := validation.ValidateUsernameParam(username); len(errs) > 0 {
 		WriteJSON(w, http.StatusBadRequest, map[string]interface{}{"success": false, "message": "Validation error", "errors": errs})
 		return

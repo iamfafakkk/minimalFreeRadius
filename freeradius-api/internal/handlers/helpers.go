@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 
@@ -31,6 +32,16 @@ func WriteInternal(w http.ResponseWriter, msg string, err error) {
 
 func PathID(r *http.Request) (int64, bool) {
 	return ParseID(chi.URLParam(r, "id"))
+}
+
+// PathParam returns a path parameter with percent-encoding decoded. chi returns
+// the raw segment (e.g. %40), which breaks usernames containing "@" or spaces.
+func PathParam(r *http.Request, name string) string {
+	v := chi.URLParam(r, name)
+	if d, err := url.PathUnescape(v); err == nil {
+		return d
+	}
+	return v
 }
 
 func ParseID(s string) (int64, bool) {
