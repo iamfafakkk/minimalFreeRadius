@@ -57,6 +57,53 @@ export interface RadiusUser {
 	profile: string | null;
 }
 
+export interface LoginRecord {
+	id: number;
+	username: string;
+	ip: string;
+	user_agent: string;
+	success: boolean;
+	created_at: string;
+}
+
+export interface ActivityRecord {
+	id: number;
+	username: string;
+	action: string;
+	method: string;
+	path: string;
+	status: number;
+	ip: string;
+	created_at: string;
+}
+
+export type RadiusLogType = 'AUTH_OK' | 'AUTH_FAIL' | 'ACCT' | 'SYS';
+
+export interface RadiusLogLine {
+	time: string;
+	level: string;
+	message: string;
+	raw: string;
+	type: RadiusLogType;
+	status: string;
+	user: string;
+	nas: string;
+}
+
+export interface AppUser {
+	id: number;
+	username: string;
+	role: string;
+	created_at: string;
+	last_login_at: string;
+}
+
+/** Open the live log stream (SSE). The stream replays the recent backlog on
+ * connect, so no separate snapshot call is needed. Caller must call .close(). */
+export function openRadiusLogStream(): EventSource {
+	return new EventSource('/api/v1/radius/log/stream');
+}
+
 /** Check the session cookie against the backend. Used by the dashboard guard + root redirect. */
 export async function verifySession(): Promise<{ valid: boolean; username?: string }> {
 	try {

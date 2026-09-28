@@ -1,10 +1,10 @@
 package router
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -13,6 +13,7 @@ import (
 	"github.com/iamfafakkk/minimalFreeRadius/freeradius-api/internal/config"
 	"github.com/iamfafakkk/minimalFreeRadius/freeradius-api/internal/handlers"
 	"github.com/iamfafakkk/minimalFreeRadius/freeradius-api/internal/middleware"
+	"github.com/iamfafakkk/minimalFreeRadius/freeradius-api/internal/radiox"
 )
 
 func readFirstExisting(paths []string) ([]byte, bool) {
@@ -45,6 +46,14 @@ func New(cfg *config.Config) http.Handler {
 	authH := handlers.NewAuthHandler(cfg)
 	nasH := handlers.NewNASHandler()
 	userH := handlers.NewUserHandler()
+	systemH := handlers.NewSystemHandler(cfg)
+
+	// RADIUS live log: tailer fills a ring buffer in the background; the
+	// handler serves the recent snapshot plus an SSE stream of new lines.
+	radioxHub := radiox.NewHub()
+	radioxTail := radiox.NewTailer(cfg.RadiusLogPath, radioxHub, 200)
+	go radioxTail.Run(context.Background())
+	radiusLogH := handlers.NewRadiusLogHandler(radioxHub, radioxTail, cfg.RadiusLogPath)
 
 	// Static-ish endpoints (same paths as Node).
 	// NB: "/" sengaja TIDAK didaftarkan sebagai JSON agar index.html
@@ -81,12 +90,13 @@ func New(cfg *config.Config) http.Handler {
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/login", authH.Login)
 			r.Post("/logout", authH.Logout)
-			r.With(middleware.RequireToken(cfg)).Get("/verify", authH.Verify)
+			r.With(middleware.RequireToken(cfg), middleware.ActivityLog).Get("/verify", authH.Verify)
 			r.Get("/info", authH.Info)
 			r.Get("/health", authH.Health)
 		})
 		r.Route("/nas", func(r chi.Router) {
 			r.Use(middleware.Authenticate(cfg))
+			r.Use(middleware.ActivityLog)
 			r.Get("/", nasH.List)
 			r.Get("/stats", nasH.Stats)
 			r.Get("/{id}", nasH.Get)
@@ -96,6 +106,7 @@ func New(cfg *config.Config) http.Handler {
 		})
 		r.Route("/users", func(r chi.Router) {
 			r.Use(middleware.Authenticate(cfg))
+			r.Use(middleware.ActivityLog)
 			r.Get("/", userH.List)
 			r.Get("/stats", userH.Stats)
 			// Specific routes must be registered before :username.
@@ -110,6 +121,21 @@ func New(cfg *config.Config) http.Handler {
 			r.Delete("/{username}", userH.Delete)
 			r.Post("/", userH.Create)
 		})
+		// Read-only views over the SQLite app DB (admin login users + logs).
+		r.Route("/system", func(r chi.Router) {
+			r.Use(middleware.Authenticate(cfg))
+			r.Get("/users", systemH.Users)
+			r.Get("/login-history", systemH.LoginHistory)
+			r.Get("/activity", systemH.Activity)
+			r.Get("/db-stats", systemH.DBStats)
+		})
+		// Live FreeRADIUS log (snapshot + SSE). Cookie-authenticated because
+		// EventSource cannot set an Authorization header.
+		r.Route("/radius", func(r chi.Router) {
+			r.Use(middleware.Authenticate(cfg))
+			r.Get("/log", radiusLogH.Recent)
+			r.Get("/log/stream", radiusLogH.Stream)
+		})
 	})
 
 	r.NotFound(func(w http.ResponseWriter, req *http.Request) {
@@ -123,5 +149,3 @@ func New(cfg *config.Config) http.Handler {
 	})
 	return r
 }
-
-var _ = path.Join

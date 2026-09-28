@@ -2,14 +2,16 @@
 	import { page } from '$app/stores';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { LayoutDashboard, Server, Users, RadioTower, LogOut, ShieldCheck } from '@lucide/svelte';
+	import { LayoutDashboard, Server, Users, RadioTower, LogOut, ShieldCheck, ScrollText, Activity } from '@lucide/svelte';
 
 	let { username, onlogout }: { username: string; onlogout: () => void } = $props();
 
 	const items = [
 		{ title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
 		{ title: 'NAS', url: '/dashboard/nas', icon: Server },
-		{ title: 'Users', url: '/dashboard/users', icon: Users }
+		{ title: 'Users', url: '/dashboard/users', icon: Users },
+		{ title: 'Radius Logs', url: '/dashboard/radius-logs', icon: Activity },
+		{ title: 'Logs', url: '/dashboard/logs', icon: ScrollText }
 	];
 </script>
 

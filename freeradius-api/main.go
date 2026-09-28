@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/iamfafakkk/minimalFreeRadius/freeradius-api/internal/appdb"
 	"github.com/iamfafakkk/minimalFreeRadius/freeradius-api/internal/config"
 	"github.com/iamfafakkk/minimalFreeRadius/freeradius-api/internal/database"
 	"github.com/iamfafakkk/minimalFreeRadius/freeradius-api/internal/router"
@@ -28,6 +29,17 @@ func main() {
 	defer database.Close()
 	_ = db
 	log.Println("Database connected successfully")
+
+	// SQLite app DB: admin users + login history + activity log. Schema and
+	// admin seed are idempotent, so restarts never duplicate or overwrite.
+	if err := appdb.Open(cfg.AppDBPath); err != nil {
+		log.Fatalf("App database (SQLite) failed: %v", err)
+	}
+	defer appdb.Close()
+	if err := appdb.SeedAdmin(cfg.AdminUsername, cfg.AdminPassword); err != nil {
+		log.Printf("WARNING: failed to seed admin user: %v", err)
+	}
+	log.Printf("App database (SQLite) ready: %s", cfg.AppDBPath)
 
 	handler := router.New(cfg)
 

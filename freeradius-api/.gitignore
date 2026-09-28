@@ -32,6 +32,8 @@ coverage.html
 
 # Database files
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
 

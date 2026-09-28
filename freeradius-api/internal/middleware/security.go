@@ -47,12 +47,20 @@ func (s *statusWriter) WriteHeader(code int) {
 	s.ResponseWriter.WriteHeader(code)
 }
 
+// Flush forwards to the underlying writer so SSE/streaming endpoints work
+// through the logging wrapper (http.Flusher is a separate interface).
+func (s *statusWriter) Flush() {
+	if f, ok := s.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 // RequestLogger mirrors the Node request log line.
 func RequestLogger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		sw := &statusWriter{ResponseWriter: w, status: 200}
 		next.ServeHTTP(sw, r)
-		log.Printf("%s - %s %s - IP: %s - %d (%s)", start.Format(time.RFC3339), r.Method, r.RequestURI, clientIP(r), sw.status, time.Since(start).Round(time.Millisecond))
+		log.Printf("%s - %s %s - IP: %s - %d (%s)", start.Format(time.RFC3339), r.Method, r.RequestURI, ClientIP(r), sw.status, time.Since(start).Round(time.Millisecond))
 	})
 }

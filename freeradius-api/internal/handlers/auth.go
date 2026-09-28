@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/iamfafakkk/minimalFreeRadius/freeradius-api/internal/appdb"
 	"github.com/iamfafakkk/minimalFreeRadius/freeradius-api/internal/config"
 	"github.com/iamfafakkk/minimalFreeRadius/freeradius-api/internal/database"
 	"github.com/iamfafakkk/minimalFreeRadius/freeradius-api/internal/middleware"
@@ -40,11 +41,19 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if body.Username != h.cfg.AdminUsername || body.Password != h.cfg.AdminPassword {
+	if body.Username != h.cfg.AdminUsername {
+		_ = appdb.RecordLogin(0, body.Username, middleware.ClientIP(r), r.UserAgent(), false)
 		WriteErr(w, http.StatusUnauthorized, "Invalid credentials")
 		return
 	}
-	token, err := middleware.GenerateToken(h.cfg, h.cfg.AdminUsername, "admin")
+	uid, role, ok := appdb.Authenticate(body.Username, body.Password)
+	if !ok {
+		_ = appdb.RecordLogin(0, body.Username, middleware.ClientIP(r), r.UserAgent(), false)
+		WriteErr(w, http.StatusUnauthorized, "Invalid credentials")
+		return
+	}
+	_ = appdb.RecordLogin(uid, body.Username, middleware.ClientIP(r), r.UserAgent(), true)
+	token, err := middleware.GenerateToken(h.cfg, body.Username, role)
 	if err != nil {
 		WriteInternal(w, "Internal server error", err)
 		return
@@ -61,7 +70,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		MaxAge: maxAge, HttpOnly: true, Secure: secure, SameSite: http.SameSiteLaxMode,
 	})
 	http.SetCookie(w, &http.Cookie{
-		Name: middleware.CookieUser, Value: h.cfg.AdminUsername, Path: "/",
+		Name: middleware.CookieUser, Value: body.Username, Path: "/",
 		MaxAge: maxAge, HttpOnly: false, Secure: secure, SameSite: http.SameSiteLaxMode,
 	})
 	WriteJSON(w, http.StatusOK, map[string]interface{}{
@@ -69,7 +78,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		"message": "Login successful",
 		"data": map[string]interface{}{
 			"token":      token,
-			"user":       map[string]interface{}{"username": h.cfg.AdminUsername, "role": "admin"},
+			"user":       map[string]interface{}{"username": body.Username, "role": role},
 			"expires_in": os.Getenv("JWT_EXPIRES_IN"),
 		},
 	})

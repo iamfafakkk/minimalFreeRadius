@@ -53,7 +53,7 @@ func NewRateLimiter(windowMs, max int) *RateLimiter {
 	return rl
 }
 
-func clientIP(r *http.Request) string {
+func ClientIP(r *http.Request) string {
 	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
 		for i, c := range fwd {
 			if c == ',' {
@@ -84,7 +84,7 @@ func trimSpace(s string) string {
 func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := clientIP(r)
+			ip := ClientIP(r)
 			now := time.Now()
 			rl.mu.Lock()
 			ts := rl.hits[ip]

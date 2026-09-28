@@ -32,6 +32,13 @@ type Config struct {
 	AdminUsername string
 	AdminPassword string
 
+	// AppDBPath: file SQLite untuk user login + log aktivitas. Dibuat dan
+	// di-seed otomatis saat server dijalankan (idempoten).
+	AppDBPath string
+
+	// RadiusLogPath: file log FreeRADIUS yang di-tail realtime oleh panel.
+	RadiusLogPath string
+
 	// WebDir: direktori hasil build frontend (adapter-static) yang di-serve
 	// backend. Kosong = mode API-only. Bisa diisi via env WEB_DIR.
 	WebDir string
@@ -114,6 +121,10 @@ func Load() *Config {
 
 		AdminUsername: getenv("ADMIN_USERNAME", "admin"),
 		AdminPassword: getenv("ADMIN_PASSWORD", "admin123!"),
+
+		AppDBPath: getenv("APP_DB_PATH", "freeradius.db"),
+
+		RadiusLogPath: getenv("RADIUS_LOG", "/var/log/freeradius/radius.log"),
 
 		WebDir: resolveWebDir(getenv("WEB_DIR", "")),
 
