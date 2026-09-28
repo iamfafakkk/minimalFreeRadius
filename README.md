@@ -194,17 +194,14 @@ radtest testuser testpass localhost 0 testing123
 
 ## 📄 Lisensi
 
-MIT License — lihat [LICENSE](LICENSE).
+MIT License — lihat [LICENSE](LICENSE). Komponen pihak ketiga memakai
+lisensinya masing-masing (FreeRADIUS & MySQL: GPLv2; Swagger UI yang
+di-vendor: Apache-2.0).
 
-Kode proyek ini berlisensi MIT. Komponen pihak ketiga memakai lisensinya
-masing-masing (FreeRADIUS & MySQL: GPLv2; Swagger UI yang di-vendor di
-`freeradius-api/docs/swagger-ui/`: Apache-2.0 — lihat `LICENSE.txt` di sana;
-Go, chi, SvelteKit, shadcn-svelte: MIT/BSD).
+## 👤 Author
 
-<div align="center">
+Farras Adytama — [@iamfafakkk](https://github.com/iamfafakkk)
 
-**⚠️ Ganti semua password default sebelum production.**
+---
 
-Dibuat oleh **Farras Adytama** · [@iamfafakkk](https://github.com/iamfafakkk)
-
-</div>
+⚠️ **Ganti semua password default sebelum dipakai di production.**
