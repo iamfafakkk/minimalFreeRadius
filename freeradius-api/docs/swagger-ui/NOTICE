@@ -1,0 +1,12 @@
+Swagger UI
+Copyright 2020-2024 SmartBear Software Inc.
+Licensed under the Apache License, Version 2.0 (see LICENSE.txt).
+https://github.com/swagger-api/swagger-ui
+
+Vendored files in this directory:
+  - swagger-ui-bundle.js
+  - swagger-ui.css
+
+The original webpack bundle header references "swagger-ui-bundle.js.LICENSE.txt",
+which upstream generates from third-party dependency licenses. This directory
+ships the Apache-2.0 license text instead.
