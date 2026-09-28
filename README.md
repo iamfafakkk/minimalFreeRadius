@@ -80,6 +80,33 @@ sudo ./setup.sh --remove-systemd  # hapus service
 
 </details>
 
+### 📦 Install dari Release
+
+Setiap rilis punya tag (mis. `v1.0.0`) dengan arsip source siap pakai — tidak
+perlu clone repo penuh.
+
+```bash
+# Unduh arsip rilis terbaru (ganti VERSION bila perlu)
+VERSION=v1.0.0
+curl -L -o minimalFreeRadius.tar.gz \
+  https://github.com/iamfafakkk/minimalFreeRadius/archive/refs/tags/${VERSION}.tar.gz
+tar -xzf minimalFreeRadius.tar.gz
+cd minimalFreeRadius-${VERSION#v}
+
+sudo ./install.sh
+cd freeradius-api && sudo ./setup.sh
+```
+
+Atau lewat git, langsung di tag rilis:
+
+```bash
+git clone --branch v1.0.0 --depth 1 \
+  https://github.com/iamfafakkk/minimalFreeRadius.git
+```
+
+> Lihat semua rilis & catatan perubahan di
+> [Releases](https://github.com/iamfafakkk/minimalFreeRadius/releases).
+
 ## 🧩 Panel Web
 
 | Halaman | Fungsi |
