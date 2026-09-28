@@ -2,33 +2,27 @@
   "openapi": "3.0.0",
   "info": {
     "title": "FreeRADIUS API",
-    "description": "REST API untuk mengelola FreeRADIUS database - NAS management dan User management",
+    "description": "REST API for managing the FreeRADIUS database (NAS + user management) plus application audit data and a live RADIUS log stream. Documentation is public and requires no authentication.",
     "version": "1.0.0",
-    "contact": {
-      "name": "API Support",
-      "email": "support@example.com"
-    },
-    "license": {
-      "name": "MIT",
-      "url": "https://opensource.org/licenses/MIT"
-    }
+    "contact": { "name": "API Support", "email": "support@example.com" },
+    "license": { "name": "MIT", "url": "https://opensource.org/licenses/MIT" }
   },
   "servers": [
-    {
-      "url": "http://localhost:3000/api",
-      "description": "Development server"
-    },
-    {
-      "url": "https://api.example.com/api",
-      "description": "Production server"
-    }
+    { "url": "/api/v1", "description": "Current server" }
   ],
   "components": {
     "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "fr_token",
+        "description": "Session cookie set by POST /auth/login. Used by the web panel and by the SSE endpoint (EventSource cannot set headers)."
+      },
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "bearerFormat": "JWT"
+        "bearerFormat": "JWT",
+        "description": "Same JWT as the fr_token cookie, sent as an Authorization header."
       }
     },
     "schemas": {
@@ -36,38 +30,27 @@
         "type": "object",
         "required": ["username", "password"],
         "properties": {
-          "username": {
-            "type": "string",
-            "example": "admin"
-          },
-          "password": {
-            "type": "string",
-            "example": "password123"
-          }
+          "username": { "type": "string", "example": "admin" },
+          "password": { "type": "string", "format": "password", "example": "admin123!" }
         }
       },
       "LoginResponse": {
         "type": "object",
         "properties": {
-          "success": {
-            "type": "boolean",
-            "example": true
-          },
-          "token": {
-            "type": "string",
-            "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-          },
-          "user": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Login successful" },
+          "data": {
             "type": "object",
             "properties": {
-              "username": {
-                "type": "string",
-                "example": "admin"
+              "token": { "type": "string", "description": "JWT (also set as fr_token cookie)" },
+              "user": {
+                "type": "object",
+                "properties": {
+                  "username": { "type": "string", "example": "admin" },
+                  "role": { "type": "string", "example": "admin" }
+                }
               },
-              "role": {
-                "type": "string",
-                "example": "admin"
-              }
+              "expires_in": { "type": "string", "example": "24h" }
             }
           }
         }
@@ -75,241 +58,163 @@
       "NAS": {
         "type": "object",
         "properties": {
-          "id": {
-            "type": "integer",
-            "example": 1
-          },
-          "nasname": {
-            "type": "string",
-            "example": "192.168.1.1"
-          },
-          "shortname": {
-            "type": "string",
-            "example": "switch01"
-          },
-          "type": {
-            "type": "string",
-            "example": "cisco"
-          },
-          "ports": {
-            "type": "integer",
-            "example": 1645
-          },
-          "secret": {
-            "type": "string",
-            "example": "secret123"
-          },
-          "server": {
-            "type": "string",
-            "example": "radius.example.com"
-          },
-          "community": {
-            "type": "string",
-            "example": "public"
-          },
-          "description": {
-            "type": "string",
-            "example": "Main office switch"
-          }
+          "id": { "type": "integer", "example": 1 },
+          "name": { "type": "string", "example": "switch01" },
+          "ip": { "type": "string", "example": "192.168.1.1" },
+          "secret": { "type": "string", "example": "secret123" },
+          "type": { "type": "string", "example": "cisco" },
+          "ports": { "type": "integer", "nullable": true, "example": 1812 },
+          "community": { "type": "string", "example": "public" },
+          "description": { "type": "string", "example": "Main office switch" }
         }
       },
       "NASRequest": {
         "type": "object",
-        "required": ["nasname", "shortname", "secret"],
+        "required": ["name", "ip", "secret"],
         "properties": {
-          "nasname": {
-            "type": "string",
-            "example": "192.168.1.1"
-          },
-          "shortname": {
-            "type": "string",
-            "example": "switch01"
-          },
-          "type": {
-            "type": "string",
-            "example": "cisco"
-          },
-          "ports": {
-            "type": "integer",
-            "example": 1645
-          },
-          "secret": {
-            "type": "string",
-            "example": "secret123"
-          },
-          "server": {
-            "type": "string",
-            "example": "radius.example.com"
-          },
-          "community": {
-            "type": "string",
-            "example": "public"
-          },
-          "description": {
-            "type": "string",
-            "example": "Main office switch"
-          }
+          "name": { "type": "string", "example": "switch01" },
+          "ip": { "type": "string", "example": "192.168.1.1" },
+          "secret": { "type": "string", "example": "secret123" },
+          "type": { "type": "string", "example": "cisco" },
+          "ports": { "type": "integer", "example": 1812 },
+          "community": { "type": "string", "example": "public" },
+          "description": { "type": "string", "example": "Main office switch" }
         }
       },
       "User": {
         "type": "object",
         "properties": {
-          "id": {
-            "type": "integer",
-            "example": 1
-          },
-          "username": {
-            "type": "string",
-            "example": "john.doe"
-          },
-          "attribute": {
-            "type": "string",
-            "example": "Cleartext-Password"
-          },
-          "op": {
-            "type": "string",
-            "example": ":="
-          },
-          "value": {
-            "type": "string",
-            "example": "password123"
-          }
+          "id": { "type": "integer", "example": 1 },
+          "user": { "type": "string", "example": "john.doe" },
+          "password": { "type": "string", "example": "password123" },
+          "profile": { "type": "string", "nullable": true, "example": "default" }
         }
       },
       "UserRequest": {
         "type": "object",
         "required": ["username", "password"],
         "properties": {
-          "username": {
-            "type": "string",
-            "example": "john.doe"
-          },
-          "password": {
-            "type": "string",
-            "example": "password123"
-          },
+          "username": { "type": "string", "example": "john.doe" },
+          "password": { "type": "string", "example": "password123" },
           "attributes": {
             "type": "object",
-            "example": {
-              "Framed-IP-Address": "192.168.1.100",
-              "Session-Timeout": "3600"
-            }
+            "example": { "Framed-IP-Address": "192.168.1.100", "Session-Timeout": "3600" }
           }
         }
       },
       "UserAttribute": {
         "type": "object",
         "properties": {
-          "id": {
-            "type": "integer",
-            "example": 1
-          },
-          "username": {
-            "type": "string",
-            "example": "john.doe"
-          },
-          "attribute": {
-            "type": "string",
-            "example": "Framed-IP-Address"
-          },
-          "op": {
-            "type": "string",
-            "example": "="
-          },
-          "value": {
-            "type": "string",
-            "example": "192.168.1.100"
-          }
+          "username": { "type": "string", "example": "john.doe" },
+          "attribute": { "type": "string", "example": "Framed-IP-Address" },
+          "op": { "type": "string", "example": "=" },
+          "value": { "type": "string", "example": "192.168.1.100" }
+        }
+      },
+      "AppUser": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "username": { "type": "string", "example": "admin" },
+          "role": { "type": "string", "example": "admin" },
+          "created_at": { "type": "string", "example": "2026-09-28 10:00:00" },
+          "last_login_at": { "type": "string", "nullable": true, "example": "2026-09-28 15:30:00" }
+        }
+      },
+      "LoginRecord": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 12 },
+          "user_id": { "type": "integer", "example": 1 },
+          "username": { "type": "string", "example": "admin" },
+          "ip": { "type": "string", "example": "203.0.113.5" },
+          "user_agent": { "type": "string", "example": "Mozilla/5.0" },
+          "success": { "type": "boolean", "example": true },
+          "created_at": { "type": "string", "example": "2026-09-28 15:30:00" }
+        }
+      },
+      "ActivityRecord": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 34 },
+          "user_id": { "type": "integer", "example": 1 },
+          "username": { "type": "string", "example": "admin" },
+          "action": { "type": "string", "example": "CREATE" },
+          "method": { "type": "string", "example": "POST" },
+          "path": { "type": "string", "example": "/api/v1/nas" },
+          "status": { "type": "integer", "example": 201 },
+          "ip": { "type": "string", "example": "203.0.113.5" },
+          "user_agent": { "type": "string", "example": "Mozilla/5.0" },
+          "created_at": { "type": "string", "example": "2026-09-28 15:31:00" }
+        }
+      },
+      "RadiusLogLine": {
+        "type": "object",
+        "properties": {
+          "time": { "type": "string", "example": "Mon Sep 28 15:30:00 2026" },
+          "level": { "type": "string", "example": "Info" },
+          "message": { "type": "string", "example": "Auth: Login OK: [testuser] (from client localhost port 0)" },
+          "raw": { "type": "string" },
+          "type": { "type": "string", "enum": ["AUTH_OK", "AUTH_FAIL", "ACCT", "SYS"] },
+          "status": { "type": "string", "enum": ["ok", "fail", "acct", "sys"] },
+          "user": { "type": "string", "example": "testuser" },
+          "nas": { "type": "string", "example": "127.0.0.1" }
         }
       },
       "Error": {
         "type": "object",
         "properties": {
-          "success": {
-            "type": "boolean",
-            "example": false
-          },
-          "error": {
-            "type": "string",
-            "example": "Invalid credentials"
-          },
-          "code": {
-            "type": "string",
-            "example": "AUTH_FAILED"
+          "success": { "type": "boolean", "example": false },
+          "message": { "type": "string", "example": "Invalid credentials" },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": { "type": "string", "example": "username" },
+                "message": { "type": "string", "example": "Username is required" }
+              }
+            }
           }
         }
       },
       "SuccessResponse": {
         "type": "object",
         "properties": {
-          "success": {
-            "type": "boolean",
-            "example": true
-          },
-          "message": {
-            "type": "string",
-            "example": "Operation completed successfully"
-          },
-          "data": {
-            "type": "object"
-          }
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Operation completed successfully" },
+          "data": { "type": "object" }
         }
       }
     }
   },
-  "security": [
-    {
-      "bearerAuth": []
-    }
+  "security": [{ "cookieAuth": [] }, { "bearerAuth": [] }],
+  "tags": [
+    { "name": "Authentication", "description": "Session login/logout and token verification" },
+    { "name": "NAS Management", "description": "Network Access Server device management" },
+    { "name": "User Management", "description": "RADIUS user and attribute management" },
+    { "name": "System", "description": "Application users, audit log, and database stats" },
+    { "name": "Radius Log", "description": "Live FreeRADIUS log (snapshot + Server-Sent Events)" }
   ],
   "paths": {
     "/auth/login": {
       "post": {
         "tags": ["Authentication"],
-        "summary": "Login user",
-        "description": "Authenticate user and return JWT token",
+        "summary": "Login",
+        "description": "Authenticate an admin user. Sets the fr_token (httpOnly) and fr_user session cookies.",
         "security": [],
         "requestBody": {
           "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LoginRequest"
-              }
-            }
-          }
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } } }
         },
         "responses": {
           "200": {
             "description": "Login successful",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LoginResponse"
-                }
-              }
-            }
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginResponse" } } }
           },
-          "401": {
-            "description": "Invalid credentials",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too many requests",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "401": { "description": "Invalid credentials", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "429": { "description": "Too many requests", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       }
     },
@@ -317,81 +222,52 @@
       "post": {
         "tags": ["Authentication"],
         "summary": "Logout",
-        "description": "Clear session cookies (fr_token, fr_user)",
+        "description": "Clear the fr_token and fr_user session cookies.",
+        "security": [],
         "responses": {
-          "200": {
-            "description": "Logout successful",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessResponse"
-                }
-              }
-            }
-          }
+          "200": { "description": "Logout successful", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } }
         }
       }
     },
-    "/auth/verify": {      "get": {
+    "/auth/verify": {
+      "get": {
         "tags": ["Authentication"],
-        "summary": "Verify JWT token",
-        "description": "Verify if the provided JWT token is valid",
+        "summary": "Verify token",
+        "description": "Verify the session token (cookie or Authorization header).",
         "responses": {
-          "200": {
-            "description": "Token is valid",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Invalid or expired token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
+          "200": { "description": "Token is valid", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "401": { "description": "Invalid or expired token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
+      }
+    },
+    "/auth/info": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "API information",
+        "description": "Metadata and the list of available endpoints.",
+        "security": [],
+        "responses": {
+          "200": { "description": "API information", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } }
+        }
+      }
+    },
+    "/auth/health": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "Auth health",
+        "description": "Lightweight health check for the backend.",
+        "security": [],
+        "responses": { "200": { "description": "Healthy", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } } }
       }
     },
     "/nas": {
       "get": {
         "tags": ["NAS Management"],
-        "summary": "Get all NAS devices",
-        "description": "Retrieve list of all Network Access Server devices",
+        "summary": "List NAS devices",
         "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "description": "Page number",
-            "schema": {
-              "type": "integer",
-              "default": 1
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "Items per page",
-            "schema": {
-              "type": "integer",
-              "default": 10
-            }
-          },
-          {
-            "name": "search",
-            "in": "query",
-            "description": "Search by nasname or shortname",
-            "schema": {
-              "type": "string"
-            }
-          }
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 10 } },
+          { "name": "search", "in": "query", "description": "Match name, IP, or description", "schema": { "type": "string" } }
         ],
         "responses": {
           "200": {
@@ -401,103 +277,44 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": true
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/NAS"
-                      }
-                    },
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/NAS" } },
+                    "count": { "type": "integer" },
                     "pagination": {
                       "type": "object",
-                      "properties": {
-                        "page": {
-                          "type": "integer"
-                        },
-                        "limit": {
-                          "type": "integer"
-                        },
-                        "total": {
-                          "type": "integer"
-                        },
-                        "pages": {
-                          "type": "integer"
-                        }
-                      }
+                      "properties": { "page": { "type": "integer" }, "limit": { "type": "integer" }, "total": { "type": "integer" }, "pages": { "type": "integer" } }
                     }
                   }
                 }
               }
             }
           },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       },
       "post": {
         "tags": ["NAS Management"],
-        "summary": "Create new NAS device",
-        "description": "Add a new Network Access Server device",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NASRequest"
-              }
-            }
-          }
-        },
+        "summary": "Create NAS device",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NASRequest" } } } },
         "responses": {
-          "201": {
-            "description": "NAS device created successfully",
+          "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "Already exists", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/nas/stats": {
+      "get": {
+        "tags": ["NAS Management"],
+        "summary": "NAS statistics",
+        "responses": {
+          "200": {
+            "description": "Counts",
             "content": {
               "application/json": {
                 "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/SuccessResponse"
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/NAS"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid input data",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "NAS device already exists",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "type": "object",
+                  "properties": { "success": { "type": "boolean" }, "data": { "type": "object", "properties": { "total_nas": { "type": "integer" } } } }
                 }
               }
             }
@@ -506,197 +323,42 @@
       }
     },
     "/nas/{id}": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
       "get": {
         "tags": ["NAS Management"],
-        "summary": "Get NAS device by ID",
-        "description": "Retrieve a specific Network Access Server device",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "NAS device ID",
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
+        "summary": "Get NAS by ID",
         "responses": {
-          "200": {
-            "description": "NAS device details",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/SuccessResponse"
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/NAS"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "NAS device not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
+          "200": { "description": "NAS detail", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       },
       "put": {
         "tags": ["NAS Management"],
-        "summary": "Update NAS device",
-        "description": "Update an existing Network Access Server device",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "NAS device ID",
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NASRequest"
-              }
-            }
-          }
-        },
+        "summary": "Update NAS",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NASRequest" } } } },
         "responses": {
-          "200": {
-            "description": "NAS device updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/SuccessResponse"
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/NAS"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid input data",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "NAS device not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
+          "200": { "description": "Updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       },
       "delete": {
         "tags": ["NAS Management"],
-        "summary": "Delete NAS device",
-        "description": "Remove a Network Access Server device",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "NAS device ID",
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
+        "summary": "Delete NAS",
         "responses": {
-          "200": {
-            "description": "NAS device deleted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "NAS device not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
+          "200": { "description": "Deleted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       }
     },
     "/users": {
       "get": {
         "tags": ["User Management"],
-        "summary": "Get all users",
-        "description": "Retrieve list of all RADIUS users",
+        "summary": "List users",
         "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "description": "Page number",
-            "schema": {
-              "type": "integer",
-              "default": 1
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "Items per page",
-            "schema": {
-              "type": "integer",
-              "default": 10
-            }
-          },
-          {
-            "name": "search",
-            "in": "query",
-            "description": "Search by username",
-            "schema": {
-              "type": "string"
-            }
-          }
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 10 } },
+          { "name": "search", "in": "query", "description": "Match username", "schema": { "type": "string" } }
         ],
         "responses": {
           "200": {
@@ -706,33 +368,10 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": true
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/User"
-                      }
-                    },
-                    "pagination": {
-                      "type": "object",
-                      "properties": {
-                        "page": {
-                          "type": "integer"
-                        },
-                        "limit": {
-                          "type": "integer"
-                        },
-                        "total": {
-                          "type": "integer"
-                        },
-                        "pages": {
-                          "type": "integer"
-                        }
-                      }
-                    }
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/User" } },
+                    "count": { "type": "integer" },
+                    "pagination": { "type": "object" }
                   }
                 }
               }
@@ -742,45 +381,27 @@
       },
       "post": {
         "tags": ["User Management"],
-        "summary": "Create new user",
-        "description": "Add a new RADIUS user",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UserRequest"
-              }
-            }
-          }
-        },
+        "summary": "Create user",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UserRequest" } } } },
         "responses": {
-          "201": {
-            "description": "User created successfully",
+          "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "Already exists", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/users/stats": {
+      "get": {
+        "tags": ["User Management"],
+        "summary": "User statistics",
+        "responses": {
+          "200": {
+            "description": "Counts",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SuccessResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid input data",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "User already exists",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "type": "object",
+                  "properties": { "success": { "type": "boolean" }, "data": { "type": "object", "properties": { "total_users": { "type": "integer" } } } }
                 }
               }
             }
@@ -788,207 +409,75 @@
         }
       }
     },
-    "/users/{username}": {
+    "/users/id/{id}": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
       "get": {
         "tags": ["User Management"],
-        "summary": "Get user by username",
-        "description": "Retrieve a specific RADIUS user with attributes",
-        "parameters": [
-          {
-            "name": "username",
-            "in": "path",
-            "required": true,
-            "description": "Username",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "summary": "Get user by numeric ID",
         "responses": {
-          "200": {
-            "description": "User details with attributes",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": true
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "user": {
-                          "$ref": "#/components/schemas/User"
-                        },
-                        "attributes": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/UserAttribute"
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "User not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
+          "200": { "description": "User detail", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "400": { "description": "Invalid ID", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       },
       "put": {
         "tags": ["User Management"],
-        "summary": "Update user",
-        "description": "Update an existing RADIUS user",
-        "parameters": [
-          {
-            "name": "username",
-            "in": "path",
-            "required": true,
-            "description": "Username",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "password": {
-                    "type": "string",
-                    "example": "newpassword123"
-                  },
-                  "attributes": {
-                    "type": "object",
-                    "example": {
-                      "Framed-IP-Address": "192.168.1.101",
-                      "Session-Timeout": "7200"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
+        "summary": "Update user by numeric ID",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UserRequest" } } } },
         "responses": {
-          "200": {
-            "description": "User updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid input data",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "User not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
+          "200": { "description": "Updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/users/{username}": {
+      "parameters": [{ "name": "username", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "get": {
+        "tags": ["User Management"],
+        "summary": "Get user by username",
+        "responses": {
+          "200": { "description": "User detail", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      },
+      "put": {
+        "tags": ["User Management"],
+        "summary": "Update user by username",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UserRequest" } } } },
+        "responses": {
+          "200": { "description": "Updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       },
       "delete": {
         "tags": ["User Management"],
         "summary": "Delete user",
-        "description": "Remove a RADIUS user and all associated attributes",
-        "parameters": [
-          {
-            "name": "username",
-            "in": "path",
-            "required": true,
-            "description": "Username",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "responses": {
-          "200": {
-            "description": "User deleted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SuccessResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "User not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
+          "200": { "description": "Deleted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       }
     },
     "/users/{username}/attributes": {
+      "parameters": [{ "name": "username", "in": "path", "required": true, "schema": { "type": "string" } }],
       "get": {
         "tags": ["User Management"],
-        "summary": "Get user attributes",
-        "description": "Retrieve all attributes for a specific user",
-        "parameters": [
-          {
-            "name": "username",
-            "in": "path",
-            "required": true,
-            "description": "Username",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "summary": "Get user check attributes",
         "responses": {
           "200": {
-            "description": "User attributes",
+            "description": "Attributes",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": true
-                    },
+                    "success": { "type": "boolean" },
                     "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/UserAttribute"
+                      "type": "object",
+                      "properties": {
+                        "username": { "type": "string" },
+                        "attributes": { "type": "array", "items": { "$ref": "#/components/schemas/UserAttribute" } }
                       }
                     }
                   }
@@ -996,33 +485,12 @@
               }
             }
           },
-          "404": {
-            "description": "User not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       },
       "post": {
         "tags": ["User Management"],
-        "summary": "Add user attribute",
-        "description": "Add a new attribute to a user",
-        "parameters": [
-          {
-            "name": "username",
-            "in": "path",
-            "required": true,
-            "description": "Username",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "summary": "Add check attribute",
         "requestBody": {
           "required": true,
           "content": {
@@ -1031,51 +499,79 @@
                 "type": "object",
                 "required": ["attribute", "value"],
                 "properties": {
-                  "attribute": {
-                    "type": "string",
-                    "example": "Framed-IP-Address"
-                  },
-                  "op": {
-                    "type": "string",
-                    "example": "=",
-                    "default": "="
-                  },
-                  "value": {
-                    "type": "string",
-                    "example": "192.168.1.100"
-                  }
+                  "attribute": { "type": "string", "example": "Framed-IP-Address" },
+                  "op": { "type": "string", "default": ":=", "example": ":=" },
+                  "value": { "type": "string", "example": "192.168.1.100" },
+                  "table": { "type": "string", "enum": ["radcheck", "radreply"], "default": "radcheck" }
                 }
               }
             }
           }
         },
         "responses": {
-          "201": {
-            "description": "Attribute added successfully",
+          "201": { "description": "Added", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "400": { "description": "Validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      },
+      "delete": {
+        "tags": ["User Management"],
+        "summary": "Remove attribute",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["attribute"],
+                "properties": {
+                  "attribute": { "type": "string", "example": "Framed-IP-Address" },
+                  "table": { "type": "string", "enum": ["radcheck", "radreply"], "default": "radcheck" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Removed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/users/{username}/reply-attributes": {
+      "parameters": [{ "name": "username", "in": "path", "required": true, "schema": { "type": "string" } }],
+      "get": {
+        "tags": ["User Management"],
+        "summary": "Get user reply attributes",
+        "responses": {
+          "200": {
+            "description": "Reply attributes",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SuccessResponse"
+                  "type": "object",
+                  "properties": { "success": { "type": "boolean" }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/UserAttribute" } } }
                 }
               }
             }
           },
-          "400": {
-            "description": "Invalid input data",
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/system/users": {
+      "get": {
+        "tags": ["System"],
+        "summary": "List app users",
+        "description": "Admin accounts stored in SQLite (password hashes never returned).",
+        "responses": {
+          "200": {
+            "description": "App users",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "User not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "type": "object",
+                  "properties": { "success": { "type": "boolean" }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/AppUser" } }, "count": { "type": "integer" } }
                 }
               }
             }
@@ -1083,80 +579,93 @@
         }
       }
     },
-    "/health": {
+    "/system/login-history": {
       "get": {
         "tags": ["System"],
-        "summary": "Health check",
-        "description": "Check API and database health status",
-        "security": [],
+        "summary": "Login history",
+        "parameters": [{ "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50 } }],
         "responses": {
           "200": {
-            "description": "System is healthy",
+            "description": "Recent login attempts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "success": { "type": "boolean" }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/LoginRecord" } }, "count": { "type": "integer" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/system/activity": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Activity audit log",
+        "parameters": [{ "name": "limit", "in": "query", "schema": { "type": "integer", "default": 100 } }],
+        "responses": {
+          "200": {
+            "description": "Recent mutating actions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "success": { "type": "boolean" }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/ActivityRecord" } }, "count": { "type": "integer" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/system/db-stats": {
+      "get": {
+        "tags": ["System"],
+        "summary": "App DB statistics",
+        "responses": {
+          "200": { "description": "Row counts and DB path", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } }
+        }
+      }
+    },
+    "/radius/log": {
+      "get": {
+        "tags": ["Radius Log"],
+        "summary": "Recent RADIUS log lines",
+        "description": "Snapshot of the most recent buffered lines from radius.log.",
+        "responses": {
+          "200": {
+            "description": "Log lines, oldest first",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "status": {
-                      "type": "string",
-                      "example": "healthy"
-                    },
-                    "timestamp": {
-                      "type": "string",
-                      "format": "date-time"
-                    },
-                    "uptime": {
-                      "type": "number",
-                      "example": 3600.5
-                    },
-                    "database": {
-                      "type": "object",
-                      "properties": {
-                        "status": {
-                          "type": "string",
-                          "example": "connected"
-                        },
-                        "response_time": {
-                          "type": "number",
-                          "example": 15.2
-                        }
-                      }
-                    }
+                    "success": { "type": "boolean" },
+                    "data": { "type": "array", "items": { "$ref": "#/components/schemas/RadiusLogLine" } },
+                    "count": { "type": "integer" },
+                    "path": { "type": "string", "example": "/var/log/freeradius/radius.log" }
                   }
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "System is unhealthy",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
           }
         }
       }
+    },
+    "/radius/log/stream": {
+      "get": {
+        "tags": ["Radius Log"],
+        "summary": "Live RADIUS log stream (SSE)",
+        "description": "Server-Sent Events stream. Backlog is replayed on connect, then new lines arrive as `event: log` with a JSON `data:` payload. Authenticate with the fr_token cookie (EventSource cannot set headers).",
+        "responses": {
+          "200": {
+            "description": "text/event-stream of RadiusLogLine objects",
+            "content": { "text/event-stream": { "schema": { "$ref": "#/components/schemas/RadiusLogLine" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
     }
-  },
-  "tags": [
-    {
-      "name": "Authentication",
-      "description": "User authentication and token management"
-    },
-    {
-      "name": "NAS Management",
-      "description": "Network Access Server device management"
-    },
-    {
-      "name": "User Management",
-      "description": "RADIUS user and attribute management"
-    },
-    {
-      "name": "System",
-      "description": "System health and monitoring"
-    }
-  ]
+  }
 }

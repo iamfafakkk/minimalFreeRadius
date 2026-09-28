@@ -2,7 +2,7 @@
 	import { page } from '$app/stores';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { LayoutDashboard, Server, Users, RadioTower, LogOut, ShieldCheck, ScrollText, Activity } from '@lucide/svelte';
+	import { LayoutDashboard, Server, Users, RadioTower, LogOut, ShieldCheck, ScrollText, Activity, FileCode } from '@lucide/svelte';
 
 	let { username, onlogout }: { username: string; onlogout: () => void } = $props();
 
@@ -58,6 +58,19 @@
 							</Sidebar.MenuButton>
 						</Sidebar.MenuItem>
 					{/each}
+					<Sidebar.MenuItem>
+						<Sidebar.MenuButton>
+							{#snippet child({ props })}
+								<a href="/api-docs" target="_blank" rel="noopener" {...props}>
+									<FileCode />
+									<span>API Docs</span>
+								</a>
+							{/snippet}
+							{#snippet tooltipContent()}
+								<span>API Docs</span>
+							{/snippet}
+						</Sidebar.MenuButton>
+					</Sidebar.MenuItem>
 				</Sidebar.Menu>
 			</Sidebar.GroupContent>
 		</Sidebar.Group>
