@@ -65,7 +65,7 @@
 				<div class="space-y-1"><Label for="user">Username</Label><Input id="user" bind:value={form.user} required minlength={6} /></div>
 				<div class="space-y-1"><Label for="password">Password</Label><Input id="password" type="password" bind:value={form.password} required minlength={6} /></div>
 				<div class="space-y-1"><Label for="profile">Profile</Label><Input id="profile" bind:value={form.profile} /></div>
-				<Button class="w-full">Tambah</Button>
+				<Button type="submit" class="w-full">Tambah</Button>
 			</form>
 		</CardContent>
 	</Card>
@@ -76,7 +76,7 @@
 			<CardDescription>
 				<form class="mt-2 flex gap-2" on:submit|preventDefault={load}>
 					<Input bind:value={search} placeholder="Cari username..." />
-					<Button variant="secondary">Cari</Button>
+					<Button type="submit" variant="secondary">Cari</Button>
 				</form>
 			</CardDescription>
 		</CardHeader>

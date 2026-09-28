@@ -65,7 +65,7 @@
 				<div class="space-y-1"><Label for="ip">IP</Label><Input id="ip" bind:value={form.ip} required placeholder="192.168.1.1" /></div>
 				<div class="space-y-1"><Label for="secret">Secret</Label><Input id="secret" type="password" bind:value={form.secret} required minlength={8} /></div>
 				<div class="space-y-1"><Label for="desc">Description</Label><Input id="desc" bind:value={form.description} /></div>
-				<Button class="w-full">Tambah</Button>
+				<Button type="submit" class="w-full">Tambah</Button>
 			</form>
 		</CardContent>
 	</Card>
@@ -76,7 +76,7 @@
 			<CardDescription>
 				<form class="mt-2 flex gap-2" on:submit|preventDefault={load}>
 					<Input bind:value={search} placeholder="Cari name / ip..." />
-					<Button variant="secondary">Cari</Button>
+					<Button type="submit" variant="secondary">Cari</Button>
 				</form>
 			</CardDescription>
 		</CardHeader>

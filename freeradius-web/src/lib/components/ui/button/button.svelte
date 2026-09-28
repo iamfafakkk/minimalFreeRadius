@@ -6,6 +6,7 @@
 	export let variant: ButtonVariant = 'default';
 	export let size: ButtonSize = 'default';
 	export let href: string | undefined = undefined;
+	export let type: 'button' | 'submit' | 'reset' = 'button';
 
 	$: klass = cn(buttonVariants({ variant, size }), $$props.class);
 </script>
@@ -15,7 +16,7 @@
 		<slot />
 	</ButtonPrimitive.Root>
 {:else}
-	<ButtonPrimitive.Root class={klass} type="button" {...$$restProps} on:click on:keydown>
+	<ButtonPrimitive.Root class={klass} {type} {...$$restProps} on:click on:keydown>
 		<slot />
 	</ButtonPrimitive.Root>
 {/if}
