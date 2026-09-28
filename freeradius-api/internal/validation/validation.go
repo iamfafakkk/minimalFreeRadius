@@ -16,6 +16,7 @@ var validNASTypes = map[string]bool{
 	"cisco": true, "computone": true, "livingston": true, "juniper": true,
 	"max40xx": true, "multitech": true, "netserver": true, "pathras": true,
 	"patton": true, "portslave": true, "tc": true, "usrhiper": true, "other": true,
+	"mikrotik": true,
 }
 
 // isValidNASName allows letters, digits, hyphen and underscore. FreeRADIUS
@@ -122,7 +123,7 @@ func ValidateNASUpdate(in *NASInput) []FieldError {
 }
 
 func nasTypeList() []string {
-	return []string{"cisco", "computone", "livingston", "juniper", "max40xx", "multitech", "netserver", "pathras", "patton", "portslave", "tc", "usrhiper", "other"}
+	return []string{"cisco", "computone", "livingston", "juniper", "max40xx", "multitech", "netserver", "pathras", "patton", "portslave", "tc", "usrhiper", "other", "mikrotik"}
 }
 
 func ValidateUserCreate(username, password string) []FieldError {

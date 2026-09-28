@@ -39,6 +39,11 @@ type Config struct {
 	// RadiusLogPath: file log FreeRADIUS yang di-tail realtime oleh panel.
 	RadiusLogPath string
 
+	// RadiusTestAddr / RadiusTestSecret: dipakai tombol Test (auth) — Access-
+	// Request dikirim ke server lokal dengan secret client 127.0.0.1.
+	RadiusTestAddr   string
+	RadiusTestSecret string
+
 	// WebDir: direktori hasil build frontend (adapter-static) yang di-serve
 	// backend. Kosong = mode API-only. Bisa diisi via env WEB_DIR.
 	WebDir string
@@ -125,6 +130,9 @@ func Load() *Config {
 		AppDBPath: getenv("APP_DB_PATH", "freeradius.db"),
 
 		RadiusLogPath: getenv("RADIUS_LOG", "/var/log/freeradius/radius.log"),
+
+		RadiusTestAddr:   getenv("RADIUS_TEST_ADDR", "127.0.0.1:1812"),
+		RadiusTestSecret: getenv("RADIUS_TEST_SECRET", "testing123"),
 
 		WebDir: resolveWebDir(getenv("WEB_DIR", "")),
 

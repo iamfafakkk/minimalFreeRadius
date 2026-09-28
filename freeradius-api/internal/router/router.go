@@ -75,7 +75,7 @@ func New(cfg *config.Config) http.Handler {
 	// dihitung, hanya request API. Satu load halaman bisa belasan request.
 
 	authH := handlers.NewAuthHandler(cfg)
-	nasH := handlers.NewNASHandler()
+	nasH := handlers.NewNASHandler(cfg)
 	userH := handlers.NewUserHandler()
 	systemH := handlers.NewSystemHandler(cfg)
 
@@ -131,10 +131,12 @@ func New(cfg *config.Config) http.Handler {
 			r.Use(middleware.ActivityLog)
 			r.Get("/", nasH.List)
 			r.Get("/stats", nasH.Stats)
+			r.Post("/test-auth", nasH.TestAuth)
 			r.Get("/{id}", nasH.Get)
 			r.Post("/", nasH.Create)
 			r.Put("/{id}", nasH.Update)
 			r.Delete("/{id}", nasH.Delete)
+			r.Post("/{id}/test", nasH.Test)
 		})
 		r.Route("/users", func(r chi.Router) {
 			r.Use(middleware.Authenticate(cfg))

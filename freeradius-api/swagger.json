@@ -322,6 +322,56 @@
         }
       }
     },
+    "/nas/test-auth": {
+      "post": {
+        "tags": ["NAS Management"],
+        "summary": "Test credentials against the local RADIUS server",
+        "description": "Sends an Access-Request to RADIUS_TEST_ADDR using RADIUS_TEST_SECRET (the secret of the client the request appears to come from, 127.0.0.1 by default) and reports Accept/Reject. This is the panel's radtest equivalent.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["username", "password"],
+                "properties": {
+                  "username": { "type": "string", "example": "radius" },
+                  "password": { "type": "string", "format": "password", "example": "radius" },
+                  "nas_id": { "type": "integer", "description": "Optional NAS id used to set NAS-Identifier" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Test result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "action": { "type": "string", "example": "auth" },
+                        "target": { "type": "string", "example": "127.0.0.1:1812" },
+                        "status": { "type": "string", "enum": ["accept", "reject", "challenge", "error", "unexpected"] },
+                        "message": { "type": "string" },
+                        "reply": { "type": "string" },
+                        "latency_ms": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Missing credentials or client secret", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
     "/nas/{id}": {
       "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
       "get": {
@@ -347,6 +397,53 @@
         "summary": "Delete NAS",
         "responses": {
           "200": { "description": "Deleted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      },
+      "post": {
+        "tags": ["NAS Management"],
+        "summary": "Test the NAS (CoA / Disconnect)",
+        "description": "Sends an RFC 5176 Disconnect-Request (default) or CoA-Request to the NAS itself on its CoA port (3799 unless nas.ports overrides it), signed with the NAS shared secret. A Disconnect-ACK/CoA-ACK means the device is reachable and the secret is correct.",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "action": { "type": "string", "enum": ["disconnect", "coa"], "default": "disconnect" },
+                  "username": { "type": "string", "description": "Optional User-Name to include" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Test result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "action": { "type": "string", "example": "disconnect" },
+                        "target": { "type": "string", "example": "192.168.88.1:3799" },
+                        "status": { "type": "string", "enum": ["ack", "nak", "timeout", "unexpected"] },
+                        "message": { "type": "string" },
+                        "reply": { "type": "string", "description": "Error-Cause when NAK" },
+                        "latency_ms": { "type": "integer" },
+                        "secret_ok": { "type": "boolean" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
           "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       }

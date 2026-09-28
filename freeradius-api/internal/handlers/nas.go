@@ -9,10 +9,6 @@ import (
 	"github.com/iamfafakkk/minimalFreeRadius/freeradius-api/internal/validation"
 )
 
-type NASHandler struct{}
-
-func NewNASHandler() *NASHandler { return &NASHandler{} }
-
 func (h *NASHandler) List(w http.ResponseWriter, r *http.Request) {
 	page, limit := QueryPageLimit(r)
 	search := r.URL.Query().Get("search")
