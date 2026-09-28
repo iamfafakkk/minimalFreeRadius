@@ -1,0 +1,32 @@
+{
+	"name": "freeradius-web",
+	"version": "1.0.0",
+	"private": true,
+	"description": "FreeRADIUS dashboard (SvelteKit + shadcn-svelte), proxy ke Go backend, auth via httpOnly cookie",
+	"type": "module",
+	"scripts": {
+		"dev": "vite dev --port 5173",
+		"build": "vite build",
+		"preview": "vite preview --port 4173",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json"
+	},
+	"dependencies": {
+		"bits-ui": "^0.22.0",
+		"clsx": "^2.1.1",
+		"lucide-svelte": "^0.441.0",
+		"tailwind-merge": "^2.5.2",
+		"tailwind-variants": "^0.2.1"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-node": "^2.1.2",
+		"@sveltejs/kit": "^2.5.18",
+		"@sveltejs/vite-plugin-svelte": "^3.1.0",
+		"autoprefixer": "^10.4.20",
+		"postcss": "^8.4.47",
+		"svelte": "^4.2.19",
+		"svelte-check": "^3.8.6",
+		"tailwindcss": "^3.4.12",
+		"typescript": "^5.5.4",
+		"vite": "^5.4.8"
+	}
+}
