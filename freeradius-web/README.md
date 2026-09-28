@@ -24,7 +24,7 @@ Backend harus jalan dulu (`freeradius-api`, default port 3000).
 
 ```bash
 npm run build
-ORIGIN=http://localhost:5173 PORT=5173 node build   # adapter-node
+npm start   # node --env-file=.env build -> PORT + ORIGIN dibaca dari .env
 ```
 
 > `ORIGIN` wajib diisi dengan origin publik frontend saat `node build`.
