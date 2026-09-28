@@ -68,6 +68,11 @@ func main() {
 		log.Printf("API Base URL: http://localhost:%d%s", cfg.Port, cfg.APIPrefix)
 		log.Printf("Health Check: http://localhost:%d/health", cfg.Port)
 		log.Printf("Environment: %s", cfg.Env)
+		if cfg.WebDir != "" {
+			log.Printf("Web panel: serving %s", cfg.WebDir)
+		} else {
+			log.Printf("Web panel: not found (API-only mode, set WEB_DIR)")
+		}
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("HTTP server error: %v", err)
 		}

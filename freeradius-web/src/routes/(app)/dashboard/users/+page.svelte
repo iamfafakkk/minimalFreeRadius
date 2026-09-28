@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { api } from '$lib/api.js';
+	import { onMount } from 'svelte';
+	import { api, type RadiusUser } from '$lib/api.js';
 	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '$lib/components/ui/card/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -13,11 +13,25 @@
 	import TableHead from '$lib/components/ui/table/table-head.svelte';
 	import TableCell from '$lib/components/ui/table/table-cell.svelte';
 
-	export let data: { items: Record<string, unknown>[]; pagination: Record<string, number>; search: string };
-	let search = data.search ?? '';
+	let items: RadiusUser[] = [];
+	let total = 0;
+	let search = '';
 	let form = { user: '', password: '', profile: 'PPP' };
 	let msg = '';
 	let err = '';
+
+	async function load() {
+		err = '';
+		const r = await api.get<RadiusUser[]>(`/v1/users/?page=1&limit=20&search=${encodeURIComponent(search)}`);
+		if (!r.ok) {
+			err = r.message ?? 'Gagal memuat users.';
+			return;
+		}
+		items = (r.data as RadiusUser[]) ?? [];
+		total = items.length;
+	}
+
+	onMount(load);
 
 	async function create() {
 		msg = ''; err = '';
@@ -25,7 +39,7 @@
 		if (!r.ok) { err = r.errors?.map((e) => e.message).join(', ') ?? r.message ?? 'Gagal menambah user.'; return; }
 		msg = 'User ditambah.';
 		form = { user: '', password: '', profile: 'PPP' };
-		await goto('/dashboard/users', { invalidateAll: true });
+		await load();
 	}
 
 	async function remove(username: string) {
@@ -33,19 +47,19 @@
 		const r = await api.del(`/v1/users/${encodeURIComponent(username)}`);
 		if (!r.ok) { err = r.message ?? 'Gagal menghapus.'; return; }
 		msg = 'User dihapus.';
-		await goto('/dashboard/users', { invalidateAll: true });
+		await load();
 	}
 </script>
 
 <h1 class="mb-1 text-2xl font-bold">Users</h1>
-<p class="mb-6 text-sm text-muted-foreground">radcheck / radreply — {data.pagination.total ?? data.items.length} user.</p>
+<p class="mb-6 text-sm text-muted-foreground">radcheck / radreply — {total} user.</p>
 
 {#if msg}<p class="mb-4 rounded-md border px-3 py-2 text-sm">{msg}</p>{/if}
 {#if err}<p class="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>{/if}
 
 <div class="grid gap-4 lg:grid-cols-3">
 	<Card class="lg:col-span-1">
-		<CardHeader><CardTitle>Tambah User</CardTitle><CardDescription>Via POST /api/v1/users/ (proxy).</CardDescription></CardHeader>
+		<CardHeader><CardTitle>Tambah User</CardTitle><CardDescription>Via POST /api/v1/users/.</CardDescription></CardHeader>
 		<CardContent>
 			<form class="space-y-3" on:submit|preventDefault={create}>
 				<div class="space-y-1"><Label for="user">Username</Label><Input id="user" bind:value={form.user} required minlength={6} /></div>
@@ -60,7 +74,7 @@
 		<CardHeader>
 			<CardTitle>Daftar User</CardTitle>
 			<CardDescription>
-				<form class="mt-2 flex gap-2" on:submit|preventDefault={() => goto(`/dashboard/users?search=${encodeURIComponent(search)}`, { invalidateAll: true })}>
+				<form class="mt-2 flex gap-2" on:submit|preventDefault={load}>
 					<Input bind:value={search} placeholder="Cari username..." />
 					<Button variant="secondary">Cari</Button>
 				</form>
@@ -70,12 +84,12 @@
 			<Table>
 				<TableHeader><TableRow><TableHead>ID</TableHead><TableHead>User</TableHead><TableHead>Profile</TableHead><TableHead>Aksi</TableHead></TableRow></TableHeader>
 				<TableBody>
-					{#each data.items as u (u.id)}
+					{#each items as u (u.id)}
 						<TableRow>
 							<TableCell>{u.id}</TableCell>
 							<TableCell class="font-medium">{u.user}</TableCell>
 							<TableCell><Badge variant="secondary">{u.profile ?? '-'}</Badge></TableCell>
-							<TableCell><Button size="sm" variant="destructive" on:click={() => remove(String(u.user))}>Hapus</Button></TableCell>
+							<TableCell><Button size="sm" variant="destructive" on:click={() => remove(u.user)}>Hapus</Button></TableCell>
 						</TableRow>
 					{:else}
 						<TableRow><TableCell colspan={4} class="text-center text-muted-foreground">Belum ada data.</TableCell></TableRow>

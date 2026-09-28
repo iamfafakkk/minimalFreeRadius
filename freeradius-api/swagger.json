@@ -313,8 +313,26 @@
         }
       }
     },
-    "/auth/verify": {
-      "get": {
+    "/auth/logout": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Logout",
+        "description": "Clear session cookies (fr_token, fr_user)",
+        "responses": {
+          "200": {
+            "description": "Logout successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/verify": {      "get": {
         "tags": ["Authentication"],
         "summary": "Verify JWT token",
         "description": "Verify if the provided JWT token is valid",

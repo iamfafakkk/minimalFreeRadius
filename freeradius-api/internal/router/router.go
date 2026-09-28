@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
@@ -45,7 +46,8 @@ func New(cfg *config.Config) http.Handler {
 	userH := handlers.NewUserHandler()
 
 	// Static-ish endpoints (same paths as Node).
-	r.Get("/", handlers.Root(cfg.APIPrefix))
+	// NB: "/" sengaja TIDAK didaftarkan sebagai JSON agar index.html
+	// frontend SPA (ServeSPA fallback) yang tampil di root.
 	r.Get("/health", handlers.GlobalHealth)
 	r.Get("/swagger.json", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -74,6 +76,7 @@ func New(cfg *config.Config) http.Handler {
 	p := cfg.APIPrefix
 	r.Route(p+"/auth", func(r chi.Router) {
 		r.Post("/login", authH.Login)
+		r.Post("/logout", authH.Logout)
 		r.With(middleware.RequireToken(cfg)).Get("/verify", authH.Verify)
 		r.Get("/info", authH.Info)
 		r.Get("/health", authH.Health)
@@ -104,7 +107,15 @@ func New(cfg *config.Config) http.Handler {
 		r.Post("/", userH.Create)
 	})
 
-	r.NotFound(handlers.NotFound(cfg.APIPrefix))
+	r.NotFound(func(w http.ResponseWriter, req *http.Request) {
+		// API yang tidak dikenal tetap JSON 404.
+		if strings.HasPrefix(req.URL.Path, p+"/") || strings.HasPrefix(req.URL.Path, "/api/") {
+			handlers.NotFound(cfg.APIPrefix)(w, req)
+			return
+		}
+		// Selain itu: serve frontend SPA (atau JSON 404 bila WebDir kosong).
+		handlers.ServeSPA(cfg.WebDir)(w, req)
+	})
 	return r
 }
 

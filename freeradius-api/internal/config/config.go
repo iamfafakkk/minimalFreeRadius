@@ -32,6 +32,10 @@ type Config struct {
 	AdminUsername string
 	AdminPassword string
 
+	// WebDir: direktori hasil build frontend (adapter-static) yang di-serve
+	// backend. Kosong = mode API-only. Bisa diisi via env WEB_DIR.
+	WebDir string
+
 	HTTPSEnabled    bool
 	HTTPSPort       int
 	RedirectToHTTPS bool
@@ -110,6 +114,8 @@ func Load() *Config {
 
 		AdminUsername: getenv("ADMIN_USERNAME", "admin"),
 		AdminPassword: getenv("ADMIN_PASSWORD", "admin123!"),
+
+		WebDir: resolveWebDir(getenv("WEB_DIR", "")),
 
 		HTTPSEnabled:    getenvBool("HTTPS_ENABLED"),
 		HTTPSPort:       getenvInt("HTTPS_PORT", 3443),

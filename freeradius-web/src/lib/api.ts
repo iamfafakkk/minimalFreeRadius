@@ -1,6 +1,6 @@
-// Client-side API helper. Semua request lewat proxy SvelteKit /api/*
-// sehingga browser tidak pernah menyimpan/mengirim JWT langsung.
-// Cookie httpOnly fr_token dibaca di server (proxy + load functions).
+// Client-side API helper (SPA statis). Production: same-origin ke backend Go
+// yang men-serve frontend ini, cookie sesi fr_token terkirim otomatis.
+// Dev (`npm run dev`): /api di-proxy vite ke BACKEND_URL.
 
 export interface ApiResult<T = unknown> {
 	ok: boolean;
@@ -13,6 +13,7 @@ export interface ApiResult<T = unknown> {
 async function req<T>(method: string, path: string, body?: unknown): Promise<ApiResult<T>> {
 	const res = await fetch(`/api${path.startsWith('/') ? path : `/${path}`}`, {
 		method,
+		credentials: 'same-origin',
 		headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
 		body: body !== undefined ? JSON.stringify(body) : undefined
 	});
@@ -54,4 +55,29 @@ export interface RadiusUser {
 	user: string;
 	password: string;
 	profile: string | null;
+}
+
+/** Cek sesi cookie ke backend. Dipakai guard dashboard + redirect root. */
+export async function verifySession(): Promise<{ valid: boolean; username?: string }> {
+	try {
+		const r = await api.get<{ user?: { username?: string }; valid?: boolean }>('/v1/auth/verify');
+		if (!r.ok) return { valid: false };
+		const username = (r.data as { user?: { username?: string } } | undefined)?.user?.username;
+		return { valid: true, username };
+	} catch {
+		return { valid: false };
+	}
+}
+
+function readCookie(name: string): string | undefined {
+	for (const part of document.cookie.split(';')) {
+		const [k, ...v] = part.trim().split('=');
+		if (k === name) return decodeURIComponent(v.join('='));
+	}
+	return undefined;
+}
+
+/** Display name dari cookie fr_user (non-httpOnly, diset backend saat login). */
+export function sessionUsername(): string {
+	return readCookie('fr_user') || 'admin';
 }

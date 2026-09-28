@@ -49,6 +49,21 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		WriteInternal(w, "Internal server error", err)
 		return
 	}
+	// Set cookie sesi untuk frontend SPA (same-origin). fr_token httpOnly
+	// agar JS tidak bisa membaca JWT; fr_user readable untuk display name.
+	secure := r.TLS != nil
+	maxAge := h.cfg.JWTExpiresH * 3600
+	if maxAge < 3600 {
+		maxAge = 24 * 3600
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name: middleware.CookieToken, Value: token, Path: "/",
+		MaxAge: maxAge, HttpOnly: true, Secure: secure, SameSite: http.SameSiteLaxMode,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name: middleware.CookieUser, Value: h.cfg.AdminUsername, Path: "/",
+		MaxAge: maxAge, HttpOnly: false, Secure: secure, SameSite: http.SameSiteLaxMode,
+	})
 	WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
 		"message": "Login successful",
@@ -57,6 +72,21 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 			"user":       map[string]interface{}{"username": h.cfg.AdminUsername, "role": "admin"},
 			"expires_in": os.Getenv("JWT_EXPIRES_IN"),
 		},
+	})
+}
+
+// Logout menghapus cookie sesi (dipakai frontend SPA).
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	secure := r.TLS != nil
+	for _, name := range []string{middleware.CookieToken, middleware.CookieUser} {
+		http.SetCookie(w, &http.Cookie{
+			Name: name, Value: "", Path: "/",
+			MaxAge: -1, HttpOnly: name == middleware.CookieToken,
+			Secure: secure, SameSite: http.SameSiteLaxMode,
+		})
+	}
+	WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true, "message": "Logout successful",
 	})
 }
 

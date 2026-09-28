@@ -15,6 +15,13 @@ type ctxKey string
 
 const userKey ctxKey = "user"
 
+// Nama cookie sesi yang dipakai frontend SPA (same-origin).
+// fr_token httpOnly (JWT), fr_user readable (display name).
+const (
+	CookieToken = "fr_token"
+	CookieUser  = "fr_user"
+)
+
 type Claims struct {
 	Username string `json:"username"`
 	Role     string `json:"role"`
@@ -60,7 +67,21 @@ func parseToken(cfg *config.Config, tokenStr string) (*Claims, error) {
 	return nil, jwt.ErrSignatureInvalid
 }
 
-// Authenticate accepts either X-API-Key or Bearer JWT (same as Node).
+// bearerToken mengambil JWT dari header Authorization, fallback ke cookie
+// fr_token (frontend SPA same-origin tidak bisa set header sendiri).
+func bearerToken(r *http.Request) string {
+	h := r.Header.Get("Authorization")
+	parts := strings.SplitN(h, " ", 2)
+	if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") && parts[1] != "" {
+		return parts[1]
+	}
+	if c, err := r.Cookie(CookieToken); err == nil && c.Value != "" {
+		return c.Value
+	}
+	return ""
+}
+
+// Authenticate accepts X-API-Key, Bearer JWT, or fr_token cookie.
 func Authenticate(cfg *config.Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -72,17 +93,12 @@ func Authenticate(cfg *config.Config) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-			h := r.Header.Get("Authorization")
-			if h == "" {
-				unauthorized(w, "Authentication required (JWT token or API key)")
+			token := bearerToken(r)
+			if token == "" {
+				unauthorized(w, "Authentication required (login via web panel or JWT/API key)")
 				return
 			}
-			parts := strings.SplitN(h, " ", 2)
-			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || parts[1] == "" {
-				unauthorized(w, "Access token required")
-				return
-			}
-			claims, err := parseToken(cfg, parts[1])
+			claims, err := parseToken(cfg, token)
 			if err != nil {
 				writeJSON(w, http.StatusForbidden, map[string]interface{}{"success": false, "message": "Invalid or expired token"})
 				return
@@ -93,17 +109,16 @@ func Authenticate(cfg *config.Config) func(http.Handler) http.Handler {
 	}
 }
 
-// RequireToken is used for /auth/verify (JWT only).
+// RequireToken is used for /auth/verify (JWT only, header or cookie).
 func RequireToken(cfg *config.Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			h := r.Header.Get("Authorization")
-			parts := strings.SplitN(h, " ", 2)
-			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || parts[1] == "" {
+			token := bearerToken(r)
+			if token == "" {
 				unauthorized(w, "Access token required")
 				return
 			}
-			claims, err := parseToken(cfg, parts[1])
+			claims, err := parseToken(cfg, token)
 			if err != nil {
 				writeJSON(w, http.StatusForbidden, map[string]interface{}{"success": false, "message": "Invalid or expired token"})
 				return
