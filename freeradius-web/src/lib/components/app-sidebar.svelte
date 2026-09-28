@@ -2,7 +2,7 @@
 	import { page } from '$app/stores';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { LayoutDashboard, Server, Users, RadioTower, LogOut, ShieldCheck, ScrollText, Activity, FileCode } from '@lucide/svelte';
+	import { LayoutDashboard, Server, Users, RadioTower, LogOut, ShieldCheck, ScrollText, Activity, FileCode, HeartPulse } from '@lucide/svelte';
 
 	let { username, onlogout }: { username: string; onlogout: () => void } = $props();
 
@@ -11,6 +11,7 @@
 		{ title: 'NAS', url: '/dashboard/nas', icon: Server },
 		{ title: 'Users', url: '/dashboard/users', icon: Users },
 		{ title: 'Radius Logs', url: '/dashboard/radius-logs', icon: Activity },
+		{ title: 'System Health', url: '/dashboard/system', icon: HeartPulse },
 		{ title: 'Logs', url: '/dashboard/logs', icon: ScrollText }
 	];
 </script>

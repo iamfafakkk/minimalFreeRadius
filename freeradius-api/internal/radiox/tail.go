@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -141,6 +142,10 @@ type Tailer struct {
 	mu   sync.Mutex
 	ring []LogLine
 	cap  int
+
+	// Lifetime auth counters since process start (for the System Health page).
+	authOK   int64
+	authFail int64
 }
 
 func NewTailer(path string, hub *Hub, backlog int) *Tailer {
@@ -151,12 +156,24 @@ func NewTailer(path string, hub *Hub, backlog int) *Tailer {
 }
 
 func (t *Tailer) add(l LogLine) {
+	switch l.Type {
+	case "AUTH_OK":
+		atomic.AddInt64(&t.authOK, 1)
+	case "AUTH_FAIL":
+		atomic.AddInt64(&t.authFail, 1)
+	}
 	t.mu.Lock()
 	t.ring = append(t.ring, l)
 	if len(t.ring) > t.cap {
 		t.ring = t.ring[len(t.ring)-t.cap:]
 	}
 	t.mu.Unlock()
+}
+
+// Counts returns the cumulative accepted/failed auth count since the tailer
+// started reading the log.
+func (t *Tailer) Counts() (ok, fail int64) {
+	return atomic.LoadInt64(&t.authOK), atomic.LoadInt64(&t.authFail)
 }
 
 // Recent returns a copy of the current ring (oldest first).

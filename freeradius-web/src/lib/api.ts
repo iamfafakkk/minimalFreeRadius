@@ -98,6 +98,30 @@ export interface AppUser {
 	last_login_at: string;
 }
 
+export interface SystemHealth {
+	api: { uptime_seconds: number; go_version: string; database: string };
+	host: {
+		hostname: string;
+		uptime_seconds: number;
+		cpu_count: number;
+		load1: number;
+		load5: number;
+		load15: number;
+		ram_used_bytes: number;
+		ram_total_bytes: number;
+		disk_used_bytes: number;
+		disk_total_bytes: number;
+	};
+	radius: {
+		status: string;
+		log_path: string;
+		test_addr: string;
+		auth_ok: number;
+		auth_fail: number;
+	};
+	appdb: { path: string; counts: Record<string, number> };
+}
+
 /** Open the live log stream (SSE). The stream replays the recent backlog on
  * connect, so no separate snapshot call is needed. Caller must call .close(). */
 export function openRadiusLogStream(): EventSource {

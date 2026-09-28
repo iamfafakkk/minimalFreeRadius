@@ -726,6 +726,16 @@
         }
       }
     },
+    "/system/health": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Server health",
+        "description": "Host metrics from /proc and statfs (load, RAM, disk, uptime), the FreeRADIUS service state, app DB counters and the RADIUS auth counters from the log tailer.",
+        "responses": {
+          "200": { "description": "Server health snapshot", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } }
+        }
+      }
+    },
     "/radius/log": {
       "get": {
         "tags": ["Radius Log"],
