@@ -44,6 +44,11 @@ type Config struct {
 	RadiusTestAddr   string
 	RadiusTestSecret string
 
+	// RadiusReloadCmd: dijalankan setelah NAS dibuat/diubah/dihapus. FreeRADIUS
+	// dengan read_clients = yes hanya membaca tabel nas saat start, jadi client
+	// baru atau yang diubah tidak dikenali sampai server di-restart. Kosong = nonaktif.
+	RadiusReloadCmd string
+
 	// WebDir: direktori hasil build frontend (adapter-static) yang di-serve
 	// backend. Kosong = mode API-only. Bisa diisi via env WEB_DIR.
 	WebDir string
@@ -133,6 +138,8 @@ func Load() *Config {
 
 		RadiusTestAddr:   getenv("RADIUS_TEST_ADDR", "127.0.0.1:1812"),
 		RadiusTestSecret: getenv("RADIUS_TEST_SECRET", "testing123"),
+
+		RadiusReloadCmd: getenv("FREERADIUS_RELOAD_CMD", "systemctl restart freeradius"),
 
 		WebDir: resolveWebDir(getenv("WEB_DIR", "")),
 

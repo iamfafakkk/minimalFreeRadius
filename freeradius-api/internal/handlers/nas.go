@@ -3,6 +3,8 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"os/exec"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/iamfafakkk/minimalFreeRadius/freeradius-api/internal/models"
@@ -105,8 +107,13 @@ func (h *NASHandler) Create(w http.ResponseWriter, r *http.Request) {
 		WriteInternal(w, "Internal server error", err)
 		return
 	}
+	reloadOut, reloadOK := h.reloadRadius()
+	msg := "NAS created successfully. FreeRADIUS restarted to load the new client."
+	if !reloadOK {
+		msg = "NAS created, but FreeRADIUS could not be restarted (" + reloadOut + "); the client may be ignored until you restart it."
+	}
 	WriteJSON(w, http.StatusCreated, map[string]interface{}{
-		"success": true, "message": "NAS created successfully", "data": n,
+		"success": true, "message": msg, "data": n,
 	})
 }
 
@@ -209,8 +216,13 @@ func (h *NASHandler) Update(w http.ResponseWriter, r *http.Request) {
 		WriteErr(w, http.StatusNotFound, "NAS not found or no changes made")
 		return
 	}
+	reloadOut, reloadOK := h.reloadRadius()
+	msg := "NAS updated successfully. FreeRADIUS restarted to apply the change."
+	if !reloadOK {
+		msg = "NAS updated, but FreeRADIUS could not be restarted (" + reloadOut + "); the change may not take effect until you restart it."
+	}
 	WriteJSON(w, http.StatusOK, map[string]interface{}{
-		"success": true, "message": "NAS updated successfully", "data": updated,
+		"success": true, "message": msg, "data": updated,
 	})
 }
 
@@ -238,7 +250,14 @@ func (h *NASHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		WriteErr(w, http.StatusNotFound, "NAS not found or already deleted")
 		return
 	}
-	WriteJSON(w, http.StatusOK, map[string]interface{}{"success": true, "message": "NAS deleted successfully"})
+	reloadOut, reloadOK := h.reloadRadius()
+	msg := "NAS deleted successfully. FreeRADIUS restarted to drop the client."
+	if !reloadOK {
+		msg = "NAS deleted, but FreeRADIUS could not be restarted (" + reloadOut + "); the client may still be accepted until you restart it."
+	}
+	WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true, "message": msg,
+	})
 }
 
 func mustJSON(m map[string]json.RawMessage) []byte {
@@ -247,3 +266,25 @@ func mustJSON(m map[string]json.RawMessage) []byte {
 }
 
 var _ = chi.URLParam
+
+// reloadRadius re-reads the FreeRADIUS client list. FreeRADIUS with
+// read_clients = yes loads the nas table only at startup, so a freshly added
+// NAS stays "unknown client" until the server is restarted. The command comes
+// from FREERADIUS_RELOAD_CMD (default "systemctl restart freeradius"); set it
+// to just "kill -HUP" if a SIGHUP is enough for your setup, or empty to skip.
+// The panel API process must be allowed to run the command (e.g. root).
+func (h *NASHandler) reloadRadius() (string, bool) {
+	cmd := strings.TrimSpace(h.cfg.RadiusReloadCmd)
+	if cmd == "" {
+		return "", true
+	}
+	parts := strings.Fields(cmd)
+	if len(parts) == 0 {
+		return "", true
+	}
+	out, err := exec.Command(parts[0], parts[1:]...).CombinedOutput()
+	if err != nil {
+		return strings.TrimSpace(string(out)) + " " + err.Error(), false
+	}
+	return strings.TrimSpace(string(out)), true
+}

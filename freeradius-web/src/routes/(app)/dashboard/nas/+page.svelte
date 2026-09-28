@@ -140,7 +140,7 @@
 			err = r.errors?.map((e) => e.message).join(', ') ?? r.message ?? 'Failed to save NAS.';
 			return;
 		}
-		msg = editing ? 'NAS updated.' : 'NAS added.';
+		msg = r.message ?? (editing ? 'NAS updated.' : 'NAS added.');
 		formOpen = false;
 		await load();
 	}
@@ -159,7 +159,7 @@
 			err = r.message ?? 'Failed to delete.';
 			return;
 		}
-		msg = 'NAS deleted.';
+		msg = r.message ?? 'NAS deleted.';
 		await load();
 	}
 
