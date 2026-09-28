@@ -38,8 +38,9 @@ func New(cfg *config.Config) http.Handler {
 	r.Use(chimw.RealIP)
 	r.Use(middleware.RequestLogger)
 	r.Use(middleware.SecurityHeaders(cfg.IsProduction()))
-	r.Use(middleware.NewRateLimiter(cfg.RateWindowMs, cfg.RateMax).Middleware())
 	r.Use(chimw.Recoverer)
+	// NB: rate limiter TIDAK global — file statis panel (html/js/css) tidak
+	// dihitung, hanya request API. Satu load halaman bisa belasan request.
 
 	authH := handlers.NewAuthHandler(cfg)
 	nasH := handlers.NewNASHandler()
@@ -74,37 +75,41 @@ func New(cfg *config.Config) http.Handler {
 	}
 
 	p := cfg.APIPrefix
-	r.Route(p+"/auth", func(r chi.Router) {
-		r.Post("/login", authH.Login)
-		r.Post("/logout", authH.Logout)
-		r.With(middleware.RequireToken(cfg)).Get("/verify", authH.Verify)
-		r.Get("/info", authH.Info)
-		r.Get("/health", authH.Health)
-	})
-	r.Route(p+"/nas", func(r chi.Router) {
-		r.Use(middleware.Authenticate(cfg))
-		r.Get("/", nasH.List)
-		r.Get("/stats", nasH.Stats)
-		r.Get("/{id}", nasH.Get)
-		r.Post("/", nasH.Create)
-		r.Put("/{id}", nasH.Update)
-		r.Delete("/{id}", nasH.Delete)
-	})
-	r.Route(p+"/users", func(r chi.Router) {
-		r.Use(middleware.Authenticate(cfg))
-		r.Get("/", userH.List)
-		r.Get("/stats", userH.Stats)
-		// Specific routes must be registered before :username.
-		r.Get("/id/{id}", userH.GetByID)
-		r.Put("/id/{id}", userH.UpdateByID)
-		r.Get("/{username}/attributes", userH.Attributes)
-		r.Post("/{username}/attributes", userH.AddAttribute)
-		r.Delete("/{username}/attributes", userH.RemoveAttribute)
-		r.Get("/{username}/reply-attributes", userH.ReplyAttributes)
-		r.Get("/{username}", userH.GetByUsername)
-		r.Put("/{username}", userH.Update)
-		r.Delete("/{username}", userH.Delete)
-		r.Post("/", userH.Create)
+	// Semua endpoint API berbagi satu rate limiter per-IP.
+	r.Route(p, func(r chi.Router) {
+		r.Use(middleware.NewRateLimiter(cfg.RateWindowMs, cfg.RateMax).Middleware())
+		r.Route("/auth", func(r chi.Router) {
+			r.Post("/login", authH.Login)
+			r.Post("/logout", authH.Logout)
+			r.With(middleware.RequireToken(cfg)).Get("/verify", authH.Verify)
+			r.Get("/info", authH.Info)
+			r.Get("/health", authH.Health)
+		})
+		r.Route("/nas", func(r chi.Router) {
+			r.Use(middleware.Authenticate(cfg))
+			r.Get("/", nasH.List)
+			r.Get("/stats", nasH.Stats)
+			r.Get("/{id}", nasH.Get)
+			r.Post("/", nasH.Create)
+			r.Put("/{id}", nasH.Update)
+			r.Delete("/{id}", nasH.Delete)
+		})
+		r.Route("/users", func(r chi.Router) {
+			r.Use(middleware.Authenticate(cfg))
+			r.Get("/", userH.List)
+			r.Get("/stats", userH.Stats)
+			// Specific routes must be registered before :username.
+			r.Get("/id/{id}", userH.GetByID)
+			r.Put("/id/{id}", userH.UpdateByID)
+			r.Get("/{username}/attributes", userH.Attributes)
+			r.Post("/{username}/attributes", userH.AddAttribute)
+			r.Delete("/{username}/attributes", userH.RemoveAttribute)
+			r.Get("/{username}/reply-attributes", userH.ReplyAttributes)
+			r.Get("/{username}", userH.GetByUsername)
+			r.Put("/{username}", userH.Update)
+			r.Delete("/{username}", userH.Delete)
+			r.Post("/", userH.Create)
+		})
 	})
 
 	r.NotFound(func(w http.ResponseWriter, req *http.Request) {

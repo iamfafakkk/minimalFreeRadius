@@ -107,7 +107,7 @@ func Load() *Config {
 		JWTExpiresH: parseExpiryHours(getenv("JWT_EXPIRES_IN", "24h")),
 
 		RateWindowMs: getenvInt("RATE_LIMIT_WINDOW_MS", 15*60*1000),
-		RateMax:      getenvInt("RATE_LIMIT_MAX_REQUESTS", 100),
+		RateMax:      getenvInt("RATE_LIMIT_MAX_REQUESTS", 1000),
 
 		CORSOrigin: getenv("CORS_ORIGIN", "*"),
 		APIKey:     getenv("API_KEY", "freeradius-api-key-change-this"),
