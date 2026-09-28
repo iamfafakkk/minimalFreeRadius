@@ -77,4 +77,29 @@
 	body {
 		@apply bg-background text-foreground;
 	}
+
+	/* Themed thin scrollbars (match Neon Orange — Porcelain) */
+	* {
+		scrollbar-width: thin;
+		scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
+	}
+	*::-webkit-scrollbar {
+		width: 8px;
+		height: 8px;
+	}
+	*::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	*::-webkit-scrollbar-thumb {
+		background-color: hsl(var(--muted-foreground) / 0.35);
+		border: 2px solid transparent;
+		background-clip: content-box;
+		border-radius: 9999px;
+	}
+	*::-webkit-scrollbar-thumb:hover {
+		background-color: hsl(var(--primary) / 0.6);
+	}
+	*::-webkit-scrollbar-corner {
+		background: transparent;
+	}
 }

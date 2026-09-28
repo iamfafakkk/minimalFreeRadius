@@ -222,10 +222,10 @@
 			<Card.Content class="p-0">
 				<div
 					bind:this={viewport}
-					class="max-h-[34rem] overflow-auto"
+					class="relative max-h-[34rem] overflow-auto"
 				>
-					<Table.Root>
-						<Table.Header class="bg-muted/50 sticky top-0 z-10">
+					<Table.Root class="overflow-visible">
+						<Table.Header class="bg-muted sticky top-0 z-10 [&_tr]:border-b">
 							<Table.Row>
 								<Table.Head class="w-[190px] text-xs tracking-wider uppercase">Time</Table.Head>
 								<Table.Head class="w-[90px] text-xs tracking-wider uppercase">Type</Table.Head>
