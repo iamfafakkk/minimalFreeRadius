@@ -1,50 +1,52 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { api } from '$lib/api.js';
-	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '$lib/components/ui/card/index.js';
+	import * as Card from '$lib/components/ui/card/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
-	import Button from '$lib/components/ui/button/button.svelte';
-	import { LogIn, Loader2, RadioTower } from 'lucide-svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import ThemeSwitcher from '$lib/components/theme-switcher.svelte';
+	import { LogIn, LoaderCircle, RadioTower } from '@lucide/svelte';
 
-	let username = '';
-	let password = '';
-	let error = '';
-	let loading = false;
+	let username = $state('');
+	let password = $state('');
+	let error = $state('');
+	let loading = $state(false);
 
 	async function login() {
 		if (loading) return;
 		error = '';
 		loading = true;
 		try {
-			// Backend Go menyet cookie sesi httpOnly fr_token (+ fr_user).
+			// Backend Go sets the httpOnly session cookie fr_token (+ fr_user).
 			const r = await api.post('/v1/auth/login', { username: username.trim(), password });
 			if (!r.ok) {
-				error = r.message ?? 'Login gagal.';
+				error = r.message ?? 'Login failed.';
 				return;
 			}
 			await goto('/dashboard');
 		} catch {
-			error = 'Backend tidak dapat dihubungi.';
+			error = 'Cannot reach the backend.';
 		} finally {
 			loading = false;
 		}
 	}
 </script>
 
-<div class="flex min-h-screen items-center justify-center bg-muted/40 p-4">
-	<Card class="w-full max-w-sm shadow-lg">
-		<CardHeader class="space-y-3 text-center">
-			<div class="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-				<RadioTower class="h-6 w-6" />
+<div class="bg-muted/40 relative flex min-h-screen items-center justify-center p-4">
+	<div class="absolute right-4 top-4"><ThemeSwitcher /></div>
+	<Card.Root class="w-full max-w-sm shadow-lg">
+		<Card.Header class="space-y-3 text-center">
+			<div class="bg-primary text-primary-foreground mx-auto flex size-12 items-center justify-center rounded-xl">
+				<RadioTower class="size-6" />
 			</div>
 			<div class="space-y-1">
-				<CardTitle class="text-xl">FreeRADIUS Panel</CardTitle>
-				<CardDescription>Masuk untuk mengelola NAS dan user.</CardDescription>
+				<Card.Title class="text-xl">FreeRADIUS Panel</Card.Title>
+				<Card.Description>Sign in to manage NAS and users.</Card.Description>
 			</div>
-		</CardHeader>
-		<CardContent>
-			<form class="space-y-4" on:submit|preventDefault={login}>
+		</Card.Header>
+		<Card.Content>
+			<form class="space-y-4" onsubmit={(e) => { e.preventDefault(); login(); }}>
 				<div class="space-y-2">
 					<Label for="username">Username</Label>
 					<Input
@@ -71,21 +73,21 @@
 				{#if error}
 					<p
 						role="alert"
-						class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+						class="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm"
 					>
 						{error}
 					</p>
 				{/if}
 				<Button type="submit" class="w-full" disabled={loading}>
 					{#if loading}
-						<Loader2 class="h-4 w-4 animate-spin" />
-						Memeriksa...
+						<LoaderCircle class="animate-spin" />
+						Checking...
 					{:else}
-						<LogIn class="h-4 w-4" />
-						Masuk
+						<LogIn />
+						Sign in
 					{/if}
 				</Button>
 			</form>
-		</CardContent>
-	</Card>
+		</Card.Content>
+	</Card.Root>
 </div>

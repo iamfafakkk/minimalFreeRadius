@@ -1,6 +1,6 @@
-// Client-side API helper (SPA statis). Production: same-origin ke backend Go
-// yang men-serve frontend ini, cookie sesi fr_token terkirim otomatis.
-// Dev (`npm run dev`): /api di-proxy vite ke BACKEND_URL.
+// Client-side API helper (static SPA). Production: same-origin to the Go backend
+// that serves this frontend; the fr_token session cookie is sent automatically.
+// Dev (`npm run dev`): /api is proxied by vite to BACKEND_URL.
 
 export interface ApiResult<T = unknown> {
 	ok: boolean;
@@ -57,7 +57,7 @@ export interface RadiusUser {
 	profile: string | null;
 }
 
-/** Cek sesi cookie ke backend. Dipakai guard dashboard + redirect root. */
+/** Check the session cookie against the backend. Used by the dashboard guard + root redirect. */
 export async function verifySession(): Promise<{ valid: boolean; username?: string }> {
 	try {
 		const r = await api.get<{ user?: { username?: string }; valid?: boolean }>('/v1/auth/verify');
@@ -77,7 +77,7 @@ function readCookie(name: string): string | undefined {
 	return undefined;
 }
 
-/** Display name dari cookie fr_user (non-httpOnly, diset backend saat login). */
+/** Display name from the fr_user cookie (non-httpOnly, set by the backend on login). */
 export function sessionUsername(): string {
 	return readCookie('fr_user') || 'admin';
 }

@@ -10,5 +10,5 @@
 </script>
 
 <div class="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
-	<p>Membuka FreeRADIUS panel...</p>
+	<p>Opening FreeRADIUS panel...</p>
 </div>

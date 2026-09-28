@@ -1,9 +1,16 @@
 <script lang="ts">
-	import { cn } from '$lib/utils.js';
-	let klass: string | undefined = undefined;
-	export { klass as class };
+	import type { HTMLAttributes } from "svelte/elements";
+	import type { WithElementRef } from "bits-ui";
+	import { cn } from "$lib/utils.js";
+
+	let {
+		ref = $bindable(null),
+		class: className,
+		children,
+		...restProps
+	}: WithElementRef<HTMLAttributes<HTMLTableSectionElement>> = $props();
 </script>
 
-<tbody class={cn('[&_tr:last-child]:border-0', klass)} {...$$restProps}>
-	<slot />
+<tbody bind:this={ref} class={cn("[&_tr:last-child]:border-0", className)} {...restProps}>
+	{@render children?.()}
 </tbody>

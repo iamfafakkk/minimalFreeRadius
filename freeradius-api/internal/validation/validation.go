@@ -18,12 +18,16 @@ var validNASTypes = map[string]bool{
 	"patton": true, "portslave": true, "tc": true, "usrhiper": true, "other": true,
 }
 
-func isAlnum(s string) bool {
+// isValidNASName allows letters, digits, hyphen and underscore. FreeRADIUS
+// shortnames like "core-router" or "office_gw" are normal; the old
+// alphanumeric-only rule rejected them. ponytail: no dot/space — widen if a
+// real NAS needs it.
+func isValidNASName(s string) bool {
 	if s == "" {
 		return false
 	}
 	for _, r := range s {
-		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9') {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
 			return false
 		}
 	}
@@ -47,8 +51,8 @@ type NASInput struct {
 // ValidateNASCreate enforces the same rules as the Node Joi schema.
 func ValidateNASCreate(in *NASInput) []FieldError {
 	var errs []FieldError
-	if !isAlnum(in.Name) {
-		errs = append(errs, FieldError{"name", "Name must contain only alphanumeric characters"})
+	if !isValidNASName(in.Name) {
+		errs = append(errs, FieldError{"name", "Name may only contain letters, digits, hyphen and underscore"})
 	} else if len(in.Name) < 3 {
 		errs = append(errs, FieldError{"name", "Name must be at least 3 characters long"})
 	} else if len(in.Name) > 30 {
@@ -84,8 +88,8 @@ func ValidateNASCreate(in *NASInput) []FieldError {
 func ValidateNASUpdate(in *NASInput) []FieldError {
 	var errs []FieldError
 	if in.Name != "" {
-		if !isAlnum(in.Name) {
-			errs = append(errs, FieldError{"name", "Name must contain only alphanumeric characters"})
+		if !isValidNASName(in.Name) {
+			errs = append(errs, FieldError{"name", "Name may only contain letters, digits, hyphen and underscore"})
 		} else if len(in.Name) < 3 {
 			errs = append(errs, FieldError{"name", "Name must be at least 3 characters long"})
 		} else if len(in.Name) > 30 {
@@ -140,10 +144,12 @@ func ValidateUserUpdate(password string, hasPassword bool) []FieldError {
 	return errs
 }
 
+// ValidateUsernameParam validates a username already present in the DB (path
+// param). Only existence/length bounds apply — the min-6 rule is for creation.
 func ValidateUsernameParam(username string) []FieldError {
 	var errs []FieldError
-	if len(username) < 6 {
-		errs = append(errs, FieldError{"username", "Username must be at least 6 characters long"})
+	if username == "" {
+		errs = append(errs, FieldError{"username", "Username is required"})
 	} else if len(username) > 64 {
 		errs = append(errs, FieldError{"username", "Username must not exceed 64 characters"})
 	}

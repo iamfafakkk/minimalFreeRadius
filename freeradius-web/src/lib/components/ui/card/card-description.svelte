@@ -1,9 +1,16 @@
 <script lang="ts">
-	import { cn } from '$lib/utils.js';
-	let klass: string | undefined = undefined;
-	export { klass as class };
+	import type { WithElementRef } from "bits-ui";
+	import type { HTMLAttributes } from "svelte/elements";
+	import { cn } from "$lib/utils.js";
+
+	let {
+		ref = $bindable(null),
+		class: className,
+		children,
+		...restProps
+	}: WithElementRef<HTMLAttributes<HTMLParagraphElement>> = $props();
 </script>
 
-<p class={cn('text-sm text-muted-foreground', klass)} {...$$restProps}>
-	<slot />
+<p bind:this={ref} class={cn("text-muted-foreground text-sm", className)} {...restProps}>
+	{@render children?.()}
 </p>

@@ -5,8 +5,8 @@ import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 const config = {
 	preprocess: vitePreprocess(),
 	kit: {
-		// Output statis (SPA) yang di-serve backend Go. Semua route
-		// non-file fallback ke index.html, guard auth jalan client-side.
+		// Static output (SPA) served by the Go backend. All non-file routes
+		// fall back to index.html; the auth guard runs client-side.
 		adapter: adapter({ pages: 'build', assets: 'build', fallback: 'index.html', strict: true }),
 		alias: { $lib: './src/lib' }
 	}
