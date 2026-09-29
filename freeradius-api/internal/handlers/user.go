@@ -41,6 +41,17 @@ func (h *UserHandler) Stats(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *UserHandler) Profiles(w http.ResponseWriter, r *http.Request) {
+	names, err := models.ListProfiles()
+	if err != nil {
+		WriteInternal(w, "Internal server error", err)
+		return
+	}
+	WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true, "message": "Profiles retrieved successfully", "data": names, "count": len(names),
+	})
+}
+
 func (h *UserHandler) GetByUsername(w http.ResponseWriter, r *http.Request) {
 	username := PathParam(r, "username")
 	if errs := validation.ValidateUsernameParam(username); len(errs) > 0 {

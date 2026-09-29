@@ -9,6 +9,7 @@
 	import * as Table from '$lib/components/ui/table/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
+	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select/index.js';
 	import { Plus, Search, Trash2, LoaderCircle, SquarePen } from '@lucide/svelte';
 
 	interface UserForm {
@@ -18,6 +19,7 @@
 	}
 
 	let items = $state<RadiusUser[]>([]);
+	let profiles = $state<string[]>([]);
 	let search = $state('');
 	let profileFilter = $state('');
 	let loading = $state(true);
@@ -31,6 +33,9 @@
 	let form = $state<UserForm>({ user: '', password: '', profile: '' });
 	let saving = $state(false);
 
+	// profile picker: dropdown when profiles exist, free text when they don't
+	let profileMode = $state<'select' | 'manual'>('manual');
+
 	// delete dialog
 	let confirmOpen = $state(false);
 	let pending = $state<RadiusUser | null>(null);
@@ -39,13 +44,17 @@
 		err = '';
 		loading = true;
 		const params = new URLSearchParams({ page: '1', limit: '50', search, profile: profileFilter });
-		const r = await api.get<RadiusUser[]>(`/v1/users/?${params.toString()}`);
+		const [r, pr] = await Promise.all([
+			api.get<RadiusUser[]>(`/v1/users/?${params.toString()}`),
+			api.get<string[]>('/v1/users/profiles')
+		]);
 		loading = false;
 		if (!r.ok) {
 			err = r.message ?? 'Failed to load users.';
 			return;
 		}
 		items = (r.data as RadiusUser[]) ?? [];
+		profiles = pr.ok ? ((pr.data as string[]) ?? []) : [];
 	}
 
 	onMount(load);
@@ -53,6 +62,7 @@
 	function openCreate() {
 		editing = null;
 		form = { user: '', password: '', profile: '' };
+		profileMode = profiles.length ? 'select' : 'manual';
 		msg = '';
 		err = '';
 		formOpen = true;
@@ -61,9 +71,15 @@
 	function openEdit(u: RadiusUser) {
 		editing = u;
 		form = { user: u.user, password: '', profile: u.profile ?? '' };
+		profileMode = profiles.length ? 'select' : 'manual';
 		msg = '';
 		err = '';
 		formOpen = true;
+	}
+
+	// Keeps a stored profile selectable even when it is not in the list.
+	function profileOptions(extra: string) {
+		return extra && !profiles.includes(extra) ? [...profiles, extra] : profiles;
 	}
 
 	async function save() {
@@ -223,10 +239,46 @@
 			</div>
 			<div class="grid gap-2">
 				<Label for="profile">Profile</Label>
-				<Input id="profile" bind:value={form.profile} placeholder="e.g. dsnet-10M" />
-				<p class="text-muted-foreground text-xs">
-					MikroTik PPP Profile name, sent as the Mikrotik-Group RADIUS attribute.
-				</p>
+				{#if profileMode === 'select'}
+					<Select type="single" value={form.profile} onValueChange={(v: string) => (form.profile = v)}>
+						<SelectTrigger aria-label="Select a profile">{form.profile || 'Select a profile...'}</SelectTrigger>
+						<SelectContent>
+							{#each profileOptions(form.profile) as name (name)}
+								<SelectItem value={name} label={name}>{name}</SelectItem>
+							{/each}
+						</SelectContent>
+					</Select>
+					<p class="text-muted-foreground text-xs">
+						MikroTik PPP profile, sent as the Mikrotik-Group RADIUS attribute.
+					</p>
+					<Button
+						type="button"
+						variant="link"
+						class="h-auto justify-start p-0 text-xs"
+						onclick={() => (profileMode = 'manual')}
+					>
+						Type a profile name manually
+					</Button>
+				{:else}
+					<Input id="profile" bind:value={form.profile} placeholder="e.g. dsnet-10M" />
+					{#if profiles.length}
+						<p class="text-muted-foreground text-xs">
+							MikroTik PPP profile, sent as the Mikrotik-Group RADIUS attribute.
+						</p>
+						<Button
+							type="button"
+							variant="link"
+							class="h-auto justify-start p-0 text-xs"
+							onclick={() => (profileMode = 'select')}
+						>
+							Select from existing profiles
+						</Button>
+					{:else}
+						<p class="text-muted-foreground text-xs">
+							No profiles yet — type a name manually. Profiles appear here once a user has been given one.
+						</p>
+					{/if}
+				{/if}
 			</div>
 			<Dialog.Footer>
 				<Button type="button" variant="outline" onclick={() => (formOpen = false)}>Cancel</Button>

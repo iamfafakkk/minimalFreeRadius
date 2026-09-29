@@ -144,6 +144,7 @@ func New(cfg *config.Config) http.Handler {
 			r.Use(middleware.ActivityLog)
 			r.Get("/", userH.List)
 			r.Get("/stats", userH.Stats)
+			r.Get("/profiles", userH.Profiles)
 			// Specific routes must be registered before :username.
 			r.Get("/id/{id}", userH.GetByID)
 			r.Put("/id/{id}", userH.UpdateByID)

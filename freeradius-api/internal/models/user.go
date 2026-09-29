@@ -197,6 +197,26 @@ func CountUsers() (int64, error) {
 	return c, err
 }
 
+// ListProfiles returns the distinct Mikrotik-Group values already assigned to
+// users. Used by the users form to offer a dropdown when profiles exist.
+func ListProfiles() ([]string, error) {
+	rows, err := database.DB.Query(
+		"SELECT DISTINCT value FROM radreply WHERE attribute = 'Mikrotik-Group' AND value <> '' ORDER BY value")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
 type Attribute struct {
 	Attribute string `json:"attribute"`
 	Op        string `json:"op"`
