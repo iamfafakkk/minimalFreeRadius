@@ -219,7 +219,9 @@ freeradius-api/
 ## 🚀 Deployment
 
 Wajib systemd. `setup.sh` membuat unit `freeradius-api.service`, enable saat
-boot, lalu start.
+boot, lalu start. Service berjalan sebagai **root** karena panel memakai
+`systemctl restart freeradius` (tombol Restart) dan menulis ke
+`/var/log/freeradius/radius.log` (tombol Clear Log File).
 
 ```bash
 sudo ./setup.sh                  # build + install + start

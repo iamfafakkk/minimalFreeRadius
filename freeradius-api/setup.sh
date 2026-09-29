@@ -151,19 +151,13 @@ configure_firewall() {
     fi
 }
 
-# Least privilege bila mungkin: pakai user 'freerad' hanya jika ia benar-benar
-# bisa masuk ke direktori kerja (mis. /opt). Di path yang tidak traversable
-# (mis. /root, 0700) pakai root agar service tetap bisa start.
+# Service selalu root: tombol "Restart FreeRADIUS" dan "Clear Log File" di panel
+# menjalankan `systemctl restart freeradius` dan menulis ke /var/log/freeradius,
+# yang keduanya butuh root. Menurunkan ke freerad akan mematikan kedua fitur itu.
+# ponytail: root saja; pakai sudoers NOPASSWD + izin log bila kelak butuh
+# service non-root.
 service_user() {
-    if ! id freerad >/dev/null 2>&1; then
-        echo "root"; return
-    fi
-    if su -s /bin/sh freerad -c "cd '$(pwd)'" >/dev/null 2>&1; then
-        echo "freerad"
-    else
-        print_warning "User 'freerad' tidak bisa mengakses $(pwd); memakai root untuk service." >&2
-        echo "root"
-    fi
+    echo "root"
 }
 
 create_systemd_service() {
