@@ -10,6 +10,7 @@
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select/index.js';
+	import { toast } from 'svelte-sonner';
 	import { Plus, Search, Trash2, LoaderCircle, SquarePen } from '@lucide/svelte';
 
 	interface UserForm {
@@ -23,9 +24,6 @@
 	let search = $state('');
 	let profileFilter = $state('');
 	let loading = $state(true);
-
-	let msg = $state('');
-	let err = $state('');
 
 	// create / edit dialog
 	let formOpen = $state(false);
@@ -41,7 +39,6 @@
 	let pending = $state<RadiusUser | null>(null);
 
 	async function load() {
-		err = '';
 		loading = true;
 		const params = new URLSearchParams({ page: '1', limit: '50', search, profile: profileFilter });
 		const [r, pr] = await Promise.all([
@@ -50,7 +47,7 @@
 		]);
 		loading = false;
 		if (!r.ok) {
-			err = r.message ?? 'Failed to load users.';
+			toast.error(r.message ?? 'Failed to load users.');
 			return;
 		}
 		items = (r.data as RadiusUser[]) ?? [];
@@ -63,8 +60,6 @@
 		editing = null;
 		form = { user: '', password: '', profile: '' };
 		profileMode = profiles.length ? 'select' : 'manual';
-		msg = '';
-		err = '';
 		formOpen = true;
 	}
 
@@ -72,8 +67,6 @@
 		editing = u;
 		form = { user: u.user, password: '', profile: u.profile ?? '' };
 		profileMode = profiles.length ? 'select' : 'manual';
-		msg = '';
-		err = '';
 		formOpen = true;
 	}
 
@@ -83,8 +76,6 @@
 	}
 
 	async function save() {
-		msg = '';
-		err = '';
 		saving = true;
 		let r;
 		if (editing) {
@@ -96,10 +87,10 @@
 		}
 		saving = false;
 		if (!r.ok) {
-			err = r.errors?.map((e) => e.message).join(', ') ?? r.message ?? 'Failed to save user.';
+			toast.error(r.errors?.map((e) => e.message).join(', ') ?? r.message ?? 'Failed to save user.');
 			return;
 		}
-		msg = editing ? 'User updated.' : 'User added.';
+		toast.success(editing ? 'User updated.' : 'User added.');
 		formOpen = false;
 		await load();
 	}
@@ -115,10 +106,10 @@
 		confirmOpen = false;
 		const r = await api.del(`/v1/users/${encodeURIComponent(username)}`);
 		if (!r.ok) {
-			err = r.message ?? 'Failed to delete.';
+			toast.error(r.message ?? 'Failed to delete.');
 			return;
 		}
-		msg = 'User deleted.';
+		toast.success('User deleted.');
 		await load();
 	}
 </script>
@@ -132,13 +123,6 @@
 	</div>
 	<Button onclick={openCreate}><Plus /> Add User</Button>
 </div>
-
-{#if msg}
-	<p class="rounded-md border px-3 py-2 text-sm">{msg}</p>
-{/if}
-{#if err}
-	<p class="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm">{err}</p>
-{/if}
 
 <Card.Root>
 	<Card.Header>

@@ -14,6 +14,7 @@
 		"@lucide/svelte": "^0.482.0",
 		"bits-ui": "^1.4.7",
 		"clsx": "^2.1.1",
+		"svelte-sonner": "^1.2.1",
 		"tailwind-merge": "^2.5.2",
 		"tailwind-variants": "^0.2.1"
 	},

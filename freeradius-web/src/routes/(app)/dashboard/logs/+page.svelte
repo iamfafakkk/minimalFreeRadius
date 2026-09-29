@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api, type ActivityRecord, type LoginRecord, type AppUser } from '$lib/api.js';
+	import { toast } from 'svelte-sonner';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
@@ -19,7 +20,6 @@
 	let activity = $state<ActivityRecord[]>([]);
 	let appUsers = $state<AppUser[]>([]);
 	let loading = $state(true);
-	let err = $state('');
 	let updatedAt = $state<Date | null>(null);
 
 	let tab = $state('logins');
@@ -42,7 +42,6 @@
 	];
 
 	async function load() {
-		err = '';
 		loading = true;
 		const [l, a, u] = await Promise.all([
 			api.get<LoginRecord[]>('/v1/system/login-history?limit=200'),
@@ -51,7 +50,7 @@
 		]);
 		loading = false;
 		if (!l.ok || !a.ok || !u.ok) {
-			err = l.message ?? a.message ?? u.message ?? 'Failed to load logs.';
+			toast.error(l.message ?? a.message ?? u.message ?? 'Failed to load logs.');
 			return;
 		}
 		logins = (l.data as LoginRecord[]) ?? [];
@@ -122,12 +121,6 @@
 		</Button>
 	</div>
 </div>
-
-{#if err}
-	<p class="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm">
-		{err}
-	</p>
-{/if}
 
 <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
 	<Card.Root>

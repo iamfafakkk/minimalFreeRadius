@@ -10,6 +10,7 @@
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import { Separator } from '$lib/components/ui/separator/index.js';
+	import { toast } from 'svelte-sonner';
 	import {
 		Plus,
 		Search,
@@ -60,9 +61,6 @@
 	let search = $state('');
 	let loading = $state(true);
 
-	let msg = $state('');
-	let err = $state('');
-
 	// create / edit dialog
 	let formOpen = $state(false);
 	let editing = $state<NAS | null>(null);
@@ -86,12 +84,11 @@
 	let pending = $state<NAS | null>(null);
 
 	async function load() {
-		err = '';
 		loading = true;
 		const r = await api.get<NAS[]>(`/v1/nas/?page=1&limit=50&search=${encodeURIComponent(search)}`);
 		loading = false;
 		if (!r.ok) {
-			err = r.message ?? 'Failed to load NAS.';
+			toast.error(r.message ?? 'Failed to load NAS.');
 			return;
 		}
 		items = (r.data as NAS[]) ?? [];
@@ -102,8 +99,6 @@
 	function openCreate() {
 		editing = null;
 		form = { name: '', ip: '', secret: '', type: 'other', ports: 3799, description: '' };
-		msg = '';
-		err = '';
 		formOpen = true;
 	}
 
@@ -117,14 +112,10 @@
 			ports: n.ports ?? 3799,
 			description: n.description ?? ''
 		};
-		msg = '';
-		err = '';
 		formOpen = true;
 	}
 
 	async function save() {
-		msg = '';
-		err = '';
 		saving = true;
 		const payload = {
 			name: form.name,
@@ -137,10 +128,10 @@
 		const r = editing ? await api.put(`/v1/nas/${editing.id}`, payload) : await api.post('/v1/nas/', payload);
 		saving = false;
 		if (!r.ok) {
-			err = r.errors?.map((e) => e.message).join(', ') ?? r.message ?? 'Failed to save NAS.';
+			toast.error(r.errors?.map((e) => e.message).join(', ') ?? r.message ?? 'Failed to save NAS.');
 			return;
 		}
-		msg = r.message ?? (editing ? 'NAS updated.' : 'NAS added.');
+		toast.success(r.message ?? (editing ? 'NAS updated.' : 'NAS added.'));
 		formOpen = false;
 		await load();
 	}
@@ -156,10 +147,10 @@
 		confirmOpen = false;
 		const r = await api.del(`/v1/nas/${id}`);
 		if (!r.ok) {
-			err = r.message ?? 'Failed to delete.';
+			toast.error(r.message ?? 'Failed to delete.');
 			return;
 		}
-		msg = r.message ?? 'NAS deleted.';
+		toast.success(r.message ?? 'NAS deleted.');
 		await load();
 	}
 
@@ -183,7 +174,10 @@
 			username: testUser
 		});
 		coaBusy = false;
-		coaResult = r.ok && r.data ? (r.data as TestResult) : { action: testAction, target: '', status: 'error', message: r.message ?? 'Request failed.', latency_ms: 0 };
+		const res: TestResult = r.ok && r.data ? (r.data as TestResult) : { action: testAction, target: '', status: 'error', message: r.message ?? 'Request failed.', latency_ms: 0 };
+		coaResult = res;
+		if (res.status === 'ack' || res.status === 'accept') toast.success(res.message);
+		else toast.error(res.message);
 	}
 
 	async function runAuth() {
@@ -196,7 +190,10 @@
 			nas_id: testNas.id
 		});
 		authBusy = false;
-		authResult = r.ok && r.data ? (r.data as TestResult) : { action: 'auth', target: '', status: 'error', message: r.message ?? 'Request failed.', latency_ms: 0 };
+		const res: TestResult = r.ok && r.data ? (r.data as TestResult) : { action: 'auth', target: '', status: 'error', message: r.message ?? 'Request failed.', latency_ms: 0 };
+		authResult = res;
+		if (res.status === 'accept') toast.success('Authentication accepted.');
+		else toast.error(res.message);
 	}
 
 	function statusClass(s: string): string {
@@ -224,13 +221,6 @@
 	</div>
 	<Button onclick={openCreate}><Plus /> Add NAS</Button>
 </div>
-
-{#if msg}
-	<p class="rounded-md border px-3 py-2 text-sm">{msg}</p>
-{/if}
-{#if err}
-	<p class="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm">{err}</p>
-{/if}
 
 <Card.Root>
 	<Card.Header>

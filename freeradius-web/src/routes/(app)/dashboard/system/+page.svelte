@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { api, type SystemHealth } from '$lib/api.js';
+	import { toast } from 'svelte-sonner';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import {
 		Activity,
 		Server,
@@ -14,14 +16,19 @@
 		Database,
 		Clock,
 		RefreshCw,
-		LoaderCircle
+		LoaderCircle,
+		RotateCw
 	} from '@lucide/svelte';
 
 	let health = $state<SystemHealth | null>(null);
 	let loading = $state(true);
-	let err = $state('');
+	let failing = $state(false);
 	let updatedAt = $state<Date | null>(null);
 	let timer: ReturnType<typeof setInterval> | undefined;
+
+	// restart FreeRADIUS
+	let restartOpen = $state(false);
+	let restarting = $state(false);
 
 	const REFRESH_MS = 5000;
 
@@ -29,10 +36,17 @@
 		const r = await api.get<SystemHealth>('/v1/system/health');
 		loading = false;
 		if (!r.ok) {
-			err = r.message ?? 'Failed to load system health.';
+			// Only announce the transition into failure, not every 5s poll.
+			if (!failing) {
+				failing = true;
+				toast.error(r.message ?? 'Failed to load system health.');
+			}
 			return;
 		}
-		err = '';
+		if (failing) {
+			failing = false;
+			toast.success('System health restored.');
+		}
 		health = r.data as SystemHealth;
 		updatedAt = new Date();
 	}
@@ -74,6 +88,20 @@
 	const diskPct = $derived(health ? pct(health.host.disk_used_bytes, health.host.disk_total_bytes) : 0);
 	const dbOk = $derived(health?.api.database === 'connected');
 	const radiusOk = $derived(health?.radius.status === 'running');
+
+	async function doRestart() {
+		restartOpen = false;
+		restarting = true;
+		const r = await api.post('/v1/system/radius/restart');
+		restarting = false;
+		if (!r.ok) {
+			const out = (r.data as { output?: string } | undefined)?.output;
+			toast.error([r.message ?? 'Failed to restart FreeRADIUS.', out].filter(Boolean).join(' — '));
+			return;
+		}
+		toast.success('FreeRADIUS restarted.');
+		await load();
+	}
 </script>
 
 <div class="flex flex-wrap items-end justify-between gap-3">
@@ -94,10 +122,6 @@
 		</Button>
 	</div>
 </div>
-
-{#if err}
-	<p class="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm">{err}</p>
-{/if}
 
 {#if loading && !health}
 	<div class="text-muted-foreground flex items-center gap-2 text-sm">
@@ -121,7 +145,17 @@
 				<Card.Title class="flex items-center gap-2 text-sm"><Server class="size-4" /> FreeRADIUS</Card.Title>
 			</Card.Header>
 			<Card.Content class="space-y-2">
-				<Badge variant={radiusOk ? 'default' : 'destructive'}>{health.radius.status}</Badge>
+				<div class="flex flex-wrap items-center justify-between gap-2">
+					<Badge variant={radiusOk ? 'default' : 'destructive'}>{health.radius.status}</Badge>
+					<Button
+						variant="outline"
+						size="sm"
+						onclick={() => (restartOpen = true)}
+						disabled={restarting}
+					>
+						{#if restarting}<LoaderCircle class="animate-spin" />{:else}<RotateCw />{/if} Restart
+					</Button>
+				</div>
 				<p class="text-muted-foreground text-xs">Auth {health.radius.test_addr}</p>
 				<p class="text-muted-foreground truncate text-xs" title={health.radius.log_path}>{health.radius.log_path}</p>
 			</Card.Content>
@@ -248,3 +282,20 @@
 		</Card.Root>
 	</div>
 {/if}
+
+<!-- Restart FreeRADIUS -->
+<AlertDialog.Root bind:open={restartOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Restart FreeRADIUS?</AlertDialog.Title>
+			<AlertDialog.Description>
+				The FreeRADIUS service is restarted via the configured reload command. Active sessions are dropped and the
+				server re-reads its config (including the NAS client list).
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Action onclick={doRestart}>Restart</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>

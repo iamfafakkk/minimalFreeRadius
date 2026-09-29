@@ -25,10 +25,32 @@ type HealthHandler struct {
 	logPath string
 	dbPath  string
 	radAddr string
+	radCmd  string
 }
 
-func NewHealthHandler(tail *radiox.Tailer, logPath, dbPath, radAddr string) *HealthHandler {
-	return &HealthHandler{tail: tail, logPath: logPath, dbPath: dbPath, radAddr: radAddr}
+func NewHealthHandler(tail *radiox.Tailer, logPath, dbPath, radAddr, radCmd string) *HealthHandler {
+	return &HealthHandler{tail: tail, logPath: logPath, dbPath: dbPath, radAddr: radAddr, radCmd: radCmd}
+}
+
+// Restart runs FREERADIUS_RELOAD_CMD (default "systemctl restart freeradius")
+// on demand. FreeRADIUS loads the nas table and most module config only at
+// startup, so a manual restart is the fix for many "stale config" situations.
+func (h *HealthHandler) Restart(w http.ResponseWriter, r *http.Request) {
+	if h.radCmd == "" {
+		WriteErr(w, http.StatusServiceUnavailable, "Restart is disabled: FREERADIUS_RELOAD_CMD is empty")
+		return
+	}
+	out, ok := runRadiusCmd(h.radCmd)
+	if !ok {
+		WriteJSON(w, http.StatusInternalServerError, map[string]interface{}{
+			"success": false, "message": "FreeRADIUS restart failed", "output": out,
+		})
+		return
+	}
+	WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true, "message": "FreeRADIUS restarted successfully",
+		"data": map[string]interface{}{"output": out},
+	})
 }
 
 func (h *HealthHandler) Get(w http.ResponseWriter, r *http.Request) {

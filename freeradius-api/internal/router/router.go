@@ -85,7 +85,7 @@ func New(cfg *config.Config) http.Handler {
 	radioxTail := radiox.NewTailer(cfg.RadiusLogPath, radioxHub, 200)
 	go radioxTail.Run(context.Background())
 	radiusLogH := handlers.NewRadiusLogHandler(radioxHub, radioxTail, cfg.RadiusLogPath)
-	healthH := handlers.NewHealthHandler(radioxTail, cfg.RadiusLogPath, cfg.AppDBPath, cfg.RadiusTestAddr)
+	healthH := handlers.NewHealthHandler(radioxTail, cfg.RadiusLogPath, cfg.AppDBPath, cfg.RadiusTestAddr, cfg.RadiusReloadCmd)
 
 	// Static-ish endpoints (same paths as Node).
 	// NB: "/" sengaja TIDAK didaftarkan sebagai JSON agar index.html
@@ -160,11 +160,13 @@ func New(cfg *config.Config) http.Handler {
 		// Read-only views over the SQLite app DB (admin login users + logs).
 		r.Route("/system", func(r chi.Router) {
 			r.Use(middleware.Authenticate(cfg))
+			r.Use(middleware.ActivityLog)
 			r.Get("/users", systemH.Users)
 			r.Get("/login-history", systemH.LoginHistory)
 			r.Get("/activity", systemH.Activity)
 			r.Get("/db-stats", systemH.DBStats)
 			r.Get("/health", healthH.Get)
+			r.Post("/radius/restart", healthH.Restart)
 		})
 		// Live FreeRADIUS log (snapshot + SSE). Cookie-authenticated because
 		// EventSource cannot set an Authorization header.

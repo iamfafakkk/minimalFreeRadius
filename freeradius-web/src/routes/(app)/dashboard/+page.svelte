@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { api } from '$lib/api.js';
+	import { toast } from 'svelte-sonner';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -10,7 +11,6 @@
 	let nas = $state(0);
 	let users = $state(0);
 	let db = $state('unknown');
-	let error = $state('');
 	let loading = $state(true);
 
 	const healthy = $derived(db === 'connected');
@@ -26,7 +26,7 @@
 			return;
 		}
 		if (!n.ok || !u.ok || !h.ok) {
-			error = 'Failed to load statistics from the backend.';
+			toast.error('Failed to load statistics from the backend.');
 			loading = false;
 			return;
 		}
@@ -41,12 +41,6 @@
 	<h1 class="text-2xl font-bold tracking-tight">Dashboard</h1>
 	<p class="text-muted-foreground text-sm">FreeRADIUS overview.</p>
 </div>
-
-{#if error}
-	<p class="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm">
-		{error}
-	</p>
-{/if}
 
 <div class="grid gap-4 md:grid-cols-3">
 	<Card.Root>

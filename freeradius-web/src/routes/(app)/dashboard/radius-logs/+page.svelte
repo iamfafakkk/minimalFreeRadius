@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { api, openRadiusLogStream, type RadiusLogLine, type RadiusLogType } from '$lib/api.js';
+	import { toast } from 'svelte-sonner';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
@@ -110,23 +111,19 @@
 	// Confirm dialog: emptying the buffer is local, truncating the file is not.
 	let confirmOpen = $state(false);
 	let clearing = $state(false);
-	let actionMsg = $state('');
-	let actionErr = $state('');
 
 	async function doClear() {
 		confirmOpen = false;
 		clearing = true;
-		actionMsg = '';
-		actionErr = '';
 		const r = await api.del('/v1/radius/log');
 		clearing = false;
 		if (!r.ok) {
-			actionErr = r.message ?? 'Failed to clear the RADIUS log.';
+			toast.error(r.message ?? 'Failed to clear the RADIUS log.');
 			return;
 		}
 		lines = [];
 		pausedBuf = [];
-		actionMsg = 'RADIUS log cleared.';
+		toast.success('RADIUS log cleared.');
 	}
 
 	const typeClass: Record<RadiusLogType, string> = {
@@ -191,12 +188,6 @@
 	</div>
 </div>
 
-{#if actionMsg}
-	<p class="rounded-md border px-3 py-2 text-sm">{actionMsg}</p>
-{/if}
-{#if actionErr}
-	<p class="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm">{actionErr}</p>
-{/if}
 
 <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
 	<Card.Root>

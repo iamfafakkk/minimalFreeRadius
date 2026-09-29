@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { api } from '$lib/api.js';
+	import { toast } from 'svelte-sonner';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Label } from '$lib/components/ui/label/index.js';
@@ -10,23 +11,21 @@
 
 	let username = $state('');
 	let password = $state('');
-	let error = $state('');
 	let loading = $state(false);
 
 	async function login() {
 		if (loading) return;
-		error = '';
 		loading = true;
 		try {
 			// Backend Go sets the httpOnly session cookie fr_token (+ fr_user).
 			const r = await api.post('/v1/auth/login', { username: username.trim(), password });
 			if (!r.ok) {
-				error = r.message ?? 'Login failed.';
+				toast.error(r.message ?? 'Login failed.');
 				return;
 			}
 			await goto('/dashboard');
 		} catch {
-			error = 'Cannot reach the backend.';
+			toast.error('Cannot reach the backend.');
 		} finally {
 			loading = false;
 		}
@@ -70,14 +69,6 @@
 						required
 					/>
 				</div>
-				{#if error}
-					<p
-						role="alert"
-						class="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm"
-					>
-						{error}
-					</p>
-				{/if}
 				<Button type="submit" class="w-full" disabled={loading}>
 					{#if loading}
 						<LoaderCircle class="animate-spin" />

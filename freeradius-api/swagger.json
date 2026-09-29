@@ -736,6 +736,18 @@
         }
       }
     },
+    "/system/radius/restart": {
+      "post": {
+        "tags": ["System"],
+        "summary": "Restart FreeRADIUS",
+        "description": "Runs FREERADIUS_RELOAD_CMD (default \"systemctl restart freeradius\"). Use after changing config only read at startup, e.g. the nas client list. Active sessions are dropped.",
+        "responses": {
+          "200": { "description": "Restarted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "500": { "description": "Restart command failed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "503": { "description": "Restart is disabled (FREERADIUS_RELOAD_CMD empty)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
     "/radius/log": {
       "get": {
         "tags": ["Radius Log"],

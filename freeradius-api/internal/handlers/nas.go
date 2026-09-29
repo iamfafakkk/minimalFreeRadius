@@ -274,7 +274,14 @@ var _ = chi.URLParam
 // to just "kill -HUP" if a SIGHUP is enough for your setup, or empty to skip.
 // The panel API process must be allowed to run the command (e.g. root).
 func (h *NASHandler) reloadRadius() (string, bool) {
-	cmd := strings.TrimSpace(h.cfg.RadiusReloadCmd)
+	return runRadiusCmd(h.cfg.RadiusReloadCmd)
+}
+
+// runRadiusCmd runs FREERADIUS_RELOAD_CMD and returns its combined output.
+// Empty means "nothing to do". Shared by the NAS reload and the Health page's
+// manual restart.
+func runRadiusCmd(cmd string) (string, bool) {
+	cmd = strings.TrimSpace(cmd)
 	if cmd == "" {
 		return "", true
 	}
