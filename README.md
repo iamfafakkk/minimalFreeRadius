@@ -48,16 +48,37 @@ flowchart LR
 
 ## 🚀 Instalasi
 
-```bash
-git clone https://github.com/iamfafakkk/minimalFreeRadius.git
-cd minimalFreeRadius
+Satu perintah, tanpa clone manual. Repo otomatis diambil ke
+`/opt/minimalFreeRadius`, lalu `install.sh` memasang MySQL + FreeRADIUS +
+schema, dan langsung menjalankan `freeradius-api/setup.sh` (Go API + panel web
++ systemd service):
 
-sudo ./install.sh          # 1. FreeRADIUS + MySQL + schema
-cd freeradius-api
-sudo ./setup.sh            # 2. Go API + panel web + systemd service
+```bash
+curl -fsSL https://raw.githubusercontent.com/iamfafakkk/minimalFreeRadius/main/install.sh | sudo bash
 ```
 
 Selesai. Panel tersedia di **`http://<server>:3000`** (login default `admin` / `admin123!`).
+
+> Butuh: Ubuntu/Debian, akses root, dan koneksi internet. Go & Node.js
+> dipasang otomatis dengan mengunduh **tarball resmi** dari `go.dev` dan
+> `nodejs.org` (bukan dari repo Ubuntu).
+
+<details>
+<summary><b>Ubah lokasi / branch, atau jalankan dari repo lokal</b></summary>
+
+<br>
+
+```bash
+# direktori atau branch lain
+curl -fsSL https://raw.githubusercontent.com/iamfafakkk/minimalFreeRadius/main/install.sh \
+  | sudo INSTALL_DIR=/srv/minimalFreeRadius REPO_BRANCH=main bash
+
+# sudah punya repo (git clone manual)
+cd minimalFreeRadius
+sudo ./install.sh
+```
+
+</details>
 
 <details>
 <summary><b>Opsi kedua script</b></summary>
@@ -66,7 +87,7 @@ Selesai. Panel tersedia di **`http://<server>:3000`** (login default `admin` / `
 
 | Script | Melakukan |
 |---|---|
-| `install.sh` | MySQL, FreeRADIUS + schema resmi, user testing, UFW (1812/1813 UDP) |
+| `install.sh` | clone repo ke `/opt` (bila via curl), MySQL, FreeRADIUS + schema resmi, user testing, UFW (1812/1813 UDP), lalu menjalankan `setup.sh` |
 | `setup.sh` | Build Go (CGO), build panel web, verifikasi schema, UFW port API, systemd service |
 
 ```bash
@@ -82,8 +103,7 @@ sudo ./setup.sh --remove-systemd  # hapus service
 
 ### 📦 Install dari Release
 
-Setiap rilis punya tag (mis. `v1.0.0`) dengan arsip source siap pakai — tidak
-perlu clone repo penuh.
+Setiap rilis punya tag (mis. `v1.0.0`) dengan arsip source siap pakai.
 
 ```bash
 # Unduh arsip rilis terbaru (ganti VERSION bila perlu)
@@ -94,7 +114,6 @@ tar -xzf minimalFreeRadius.tar.gz
 cd minimalFreeRadius-${VERSION#v}
 
 sudo ./install.sh
-cd freeradius-api && sudo ./setup.sh
 ```
 
 Atau lewat git, langsung di tag rilis:

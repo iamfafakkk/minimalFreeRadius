@@ -17,6 +17,44 @@
 # Date: $(date +"%Y-%m-%d")
 #=============================================================================
 
+#=====
+# Bootstrap one-liner: `curl ... | sudo bash` tidak punya repo di disk.
+# Clone ke /opt lalu lanjut dari sana. Dijalankan dari dalam repo, dilewati.
+#=====
+if [ "${MFR_BOOTSTRAPPED:-}" != "1" ] \
+   && [ ! -f "$(dirname "${BASH_SOURCE[0]:-.}")/freeradius-api/go.mod" ]; then
+    REPO_URL="${REPO_URL:-https://github.com/iamfafakkk/minimalFreeRadius.git}"
+    REPO_BRANCH="${REPO_BRANCH:-main}"
+    INSTALL_DIR="${INSTALL_DIR:-/opt/minimalFreeRadius}"
+
+    if [ "$(id -u)" -ne 0 ]; then
+        echo "Jalankan sebagai root: curl -fsSL <install.sh-url> | sudo bash" >&2
+        exit 1
+    fi
+
+    echo "📥 Memasang repositori ke ${INSTALL_DIR}..."
+    apt-get update -qq
+    apt-get install -y -qq git
+
+    # Jangan timpa instalasi yang sudah ada (mungkin .env/skema sudah diubah).
+    if [ -e "${INSTALL_DIR}/.git" ]; then
+        echo "ℹ️  ${INSTALL_DIR} sudah ada — pakai yang ada, tidak clone ulang."
+    elif [ -e "$INSTALL_DIR" ]; then
+        echo "❌ ${INSTALL_DIR} sudah ada dan bukan repo git. Pindahkan/hapus dulu." >&2
+        exit 1
+    else
+        git clone --depth 1 --branch "$REPO_BRANCH" "$REPO_URL" "$INSTALL_DIR"
+    fi
+
+    export MFR_BOOTSTRAPPED=1
+    # Prompt konfirmasi butuh tty: `curl | bash` membuat stdin jadi pipe.
+    # Alihkan stdin ke /dev/tty bila ada; kalau tidak, prompt terbaca EOF.
+    if [ -r /dev/tty ]; then
+        exec "${INSTALL_DIR}/install.sh" "$@" </dev/tty
+    fi
+    exec "${INSTALL_DIR}/install.sh" "$@"
+fi
+
 # Konfigurasi warna untuk output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -147,6 +185,103 @@ check_command() {
         return 1
     fi
     return 0
+}
+
+# Verifikasi checksum SHA256 terhadap daftar resmi. Menangkap unduhan rusak /
+# salah, tapi BUKAN pengganti tanda tangan GPG (checksum & tarball satu origin).
+verify_sha256() {
+    local file=$1 expected=$2 got
+    got=$(sha256sum "$file" 2>/dev/null | awk '{print $1}')
+    if [ -z "$expected" ] || [ "$got" != "$expected" ]; then
+        handle_error 1 "Checksum SHA256 tidak cocok untuk $(basename "$file") (didapat: ${got:-kosong})" $LINENO
+    fi
+    print_message $GREEN "✅ Checksum SHA256 terverifikasi: $(basename "$file")"
+}
+
+# Arsitektur CPU untuk unduhan tarball resmi.
+#   x86_64 → amd64/amd64 · aarch64 → arm64
+arch_go() {
+    case "$(uname -m)" in
+        x86_64) echo "amd64" ;;
+        aarch64|arm64) echo "arm64" ;;
+    esac
+}
+arch_node() {
+    case "$(uname -m)" in
+        x86_64) echo "x64" ;;
+        aarch64|arm64) echo "arm64" ;;
+    esac
+}
+
+# Go dari tarball resmi go.dev (bukan apt golang-go yang masih 1.18).
+ensure_go() {
+    if check_command go; then
+        print_message $GREEN "✅ Go sudah terpasang: $(go version)"
+        return 0
+    fi
+
+    local arch json version tarball expected
+    arch=$(arch_go)
+    [ -n "$arch" ] || handle_error 1 "Arsitektur tidak didukung untuk Go: $(uname -m)" $LINENO
+    # Objek pertama di ?mode=json adalah rilis stabil terbaru.
+    json=$(curl -fsSL 'https://go.dev/dl/?mode=json') \
+        || handle_error 1 "Gagal mengambil daftar rilis dari go.dev" $LINENO
+    # ?mode=json pretty-printed: `"version": "go1.27.1"` (ada spasi).
+    version=$(printf '%s\n' "$json" \
+        | sed -n '/"version": *"go[0-9.]*"/{s/.*"version": *"go\([0-9.]*\)".*/\1/p;q;}')
+    if [ -z "$version" ]; then
+        handle_error 1 "Tidak bisa menentukan versi Go terbaru dari go.dev" $LINENO
+    fi
+
+    tarball="go${version}.linux-${arch}.tar.gz"
+    # Ambil sha256 yang cocok arch dari JSON (blok "filename" lalu "sha256").
+    expected=$(printf '%s\n' "$json" | tr -d '\n ' | grep -o "\"filename\":\"${tarball}\",[^}]*\"sha256\":\"[a-f0-9]*\"" | grep -o '[a-f0-9]\{64\}')
+    print_message $BLUE "⬇️  Mengunduh Go ${version} dari go.dev..."
+    run_command "curl -fsSL -o /tmp/${tarball} https://go.dev/dl/${tarball}" "Download Go ${version}" $LINENO
+    verify_sha256 "/tmp/${tarball}" "$expected"
+    run_command "rm -rf /usr/local/go && tar -C /usr/local -xzf /tmp/${tarball}" "Install Go ${version} to /usr/local/go" $LINENO
+    run_command "rm -f /tmp/${tarball}" "Clean up Go tarball" $LINENO
+    # /usr/local/bin ada di PATH default → tersedia untuk shell & service.
+    ln -sf /usr/local/go/bin/go /usr/local/bin/go
+    ln -sf /usr/local/go/bin/gofmt /usr/local/bin/gofmt
+    export PATH="/usr/local/go/bin:$PATH"
+    print_message $GREEN "✅ Go terpasang: $(/usr/local/go/bin/go version)"
+}
+
+# Node/npm dari tarball resmi nodejs.org (bukan apt nodejs 12 / repo NodeSource).
+ensure_node() {
+    if check_command node && [ "$(node -v | sed 's/v\([0-9]*\).*/\1/')" -ge 18 ] 2>/dev/null; then
+        print_message $GREEN "✅ Node.js sudah terpasang: $(node -v)"
+        return 0
+    fi
+
+    local arch json version file expected
+    arch=$(arch_node)
+    [ -n "$arch" ] || handle_error 1 "Arsitektur tidak didukung untuk Node.js: $(uname -m)" $LINENO
+    # /dist/latest-lts tidak ada (404). Versi LTS resmi = index.json: entri
+    # pertama yang "lts"-nya string (daftar urut terbaru dulu).
+    json=$(curl -fsSL https://nodejs.org/dist/index.json) \
+        || handle_error 1 "Gagal mengambil index.json dari nodejs.org" $LINENO
+    version=$(printf '%s\n' "$json" \
+        | sed -n '/"lts":"[^"]*"/{s/.*"version":"\(v[0-9.]*\)".*/\1/p;q;}')
+    if [ -z "$version" ]; then
+        handle_error 1 "Tidak bisa menentukan versi Node.js LTS terbaru dari nodejs.org" $LINENO
+    fi
+
+    file="node-${version}-linux-${arch}.tar.gz"
+    # Checksum resmi per-rilis.
+    expected=$(curl -fsSL "https://nodejs.org/dist/${version}/SHASUMS256.txt" 2>/dev/null \
+        | grep -E "[[:space:]]${file}\$" | awk '{print $1}')
+    if [ -z "$expected" ]; then
+        handle_error 1 "Tidak menemukan checksum SHA256 untuk ${file} di nodejs.org" $LINENO
+    fi
+    print_message $BLUE "⬇️  Mengunduh Node.js ${version} dari nodejs.org..."
+    run_command "curl -fsSL -o /tmp/${file} https://nodejs.org/dist/${version}/${file}" "Download Node.js (${file})" $LINENO
+    verify_sha256 "/tmp/${file}" "$expected"
+    run_command "tar -C /usr/local --strip-components=1 -xzf /tmp/${file}" "Install Node.js to /usr/local" $LINENO
+    run_command "rm -f /tmp/${file}" "Clean up Node.js tarball" $LINENO
+    hash -r
+    print_message $GREEN "✅ Node.js terpasang: $(node -v) (npm $(npm -v))"
 }
 
 # Fungsi untuk mengecek status service
@@ -801,6 +936,7 @@ configure_ufw_firewall() {
     
     show_progress 3 6 "Configuring UFW rules for FreeRADIUS..."
     # Aktifkan port 1812 (Authentication) dan 1813 (Accounting) untuk UDP
+    run_command "ufw allow 22/tcp comment 'SSH'" "Allow port 22" $LINENO
     run_command "ufw allow 1812/udp comment 'FreeRADIUS Authentication'" "Allow port 1812/udp" $LINENO
     run_command "ufw allow 1813/udp comment 'FreeRADIUS Accounting'" "Allow port 1813/udp" $LINENO
     
@@ -1061,7 +1197,23 @@ main() {
     echo
     print_message $BLUE "🔍 Memvalidasi instalasi..."
     validate_installation
-    
+
+    # API + panel web: repo ini sudah di disk (clone bootstrap / git clone manual),
+    # jadi tidak perlu langkah manual lagi.
+    if [ -f "./freeradius-api/setup.sh" ]; then
+        echo
+        print_message $BLUE "💻 Memasang API + panel web..."
+        ensure_go
+        ensure_node
+        if ( cd freeradius-api && ./setup.sh ); then
+            print_message $GREEN "✅ API + panel web terpasang"
+        else
+            print_message $YELLOW "⚠️  setup.sh gagal. Jalankan manual: cd freeradius-api && sudo ./setup.sh"
+        fi
+    else
+        print_message $YELLOW "⚠️  freeradius-api/setup.sh tidak ditemukan — API + panel dilewati."
+    fi
+
     echo
     print_message $GREEN "🎉 Instalasi FreeRADIUS selesai!"
     echo
