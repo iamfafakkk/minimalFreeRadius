@@ -185,6 +185,13 @@ func (t *Tailer) Recent() []LogLine {
 	return out
 }
 
+// Clear drops the buffered backlog after the log file is truncated.
+func (t *Tailer) Clear() {
+	t.mu.Lock()
+	t.ring = nil
+	t.mu.Unlock()
+}
+
 // Run tails the file until ctx is done. The first pass loads the last `cap`
 // lines into the ring and starts streaming only from the end.
 func (t *Tailer) Run(ctx context.Context) {

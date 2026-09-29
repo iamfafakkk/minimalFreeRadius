@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/iamfafakkk/minimalFreeRadius/freeradius-api/internal/radiox"
@@ -70,6 +71,19 @@ func (h *RadiusLogHandler) Stream(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 	}
+}
+
+// Clear truncates the log file and drops the buffered backlog, so the panel and
+// every connected stream start fresh.
+func (h *RadiusLogHandler) Clear(w http.ResponseWriter, r *http.Request) {
+	if err := os.Truncate(h.path, 0); err != nil {
+		WriteInternal(w, "Could not clear the RADIUS log", err)
+		return
+	}
+	h.tail.Clear()
+	WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"success": true, "message": "RADIUS log cleared successfully",
+	})
 }
 
 func writeSSE(w http.ResponseWriter, l radiox.LogLine) {

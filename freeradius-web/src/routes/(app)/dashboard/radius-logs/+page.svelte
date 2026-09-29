@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { openRadiusLogStream, type RadiusLogLine, type RadiusLogType } from '$lib/api.js';
+	import { api, openRadiusLogStream, type RadiusLogLine, type RadiusLogType } from '$lib/api.js';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -13,7 +14,7 @@
 		SelectItem,
 		SelectTrigger
 	} from '$lib/components/ui/select/index.js';
-	import { Pause, Play, Trash2, ArrowDownToLine } from '@lucide/svelte';
+	import { Pause, Play, Trash2, ArrowDownToLine, Eraser, LoaderCircle } from '@lucide/svelte';
 
 	const MAX_LINES = 1000;
 
@@ -106,6 +107,28 @@
 		pausedBuf = [];
 	}
 
+	// Confirm dialog: emptying the buffer is local, truncating the file is not.
+	let confirmOpen = $state(false);
+	let clearing = $state(false);
+	let actionMsg = $state('');
+	let actionErr = $state('');
+
+	async function doClear() {
+		confirmOpen = false;
+		clearing = true;
+		actionMsg = '';
+		actionErr = '';
+		const r = await api.del('/v1/radius/log');
+		clearing = false;
+		if (!r.ok) {
+			actionErr = r.message ?? 'Failed to clear the RADIUS log.';
+			return;
+		}
+		lines = [];
+		pausedBuf = [];
+		actionMsg = 'RADIUS log cleared.';
+	}
+
 	const typeClass: Record<RadiusLogType, string> = {
 		AUTH_OK: 'bg-emerald-500/15 text-emerald-500 border-emerald-500/20',
 		AUTH_FAIL: 'bg-red-500/15 text-red-500 border-red-500/20',
@@ -153,9 +176,27 @@
 		>
 			<ArrowDownToLine /> Autoscroll
 		</Button>
-		<Button variant="outline" size="sm" onclick={clear}><Trash2 /> Clear</Button>
+		<Button variant="outline" size="sm" onclick={clear} title="Clear the panel buffer only"
+			><Trash2 /> Clear</Button
+		>
+		<Button
+			variant="destructive"
+			size="sm"
+			onclick={() => (confirmOpen = true)}
+			disabled={clearing}
+			title="Truncate the FreeRADIUS log file on the server"
+		>
+			{#if clearing}<LoaderCircle class="animate-spin" />{:else}<Eraser />{/if} Clear Log File
+		</Button>
 	</div>
 </div>
+
+{#if actionMsg}
+	<p class="rounded-md border px-3 py-2 text-sm">{actionMsg}</p>
+{/if}
+{#if actionErr}
+	<p class="border-destructive/30 bg-destructive/10 text-destructive rounded-md border px-3 py-2 text-sm">{actionErr}</p>
+{/if}
 
 <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
 	<Card.Root>
@@ -291,3 +332,20 @@
 		</Card.Root>
 	</Tabs.Content>
 </Tabs.Root>
+
+<!-- Clear Log File -->
+<AlertDialog.Root bind:open={confirmOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Clear the RADIUS log file?</AlertDialog.Title>
+			<AlertDialog.Description>
+				<span class="text-foreground font-mono text-xs">/var/log/freeradius/radius.log</span> will be truncated on the
+				server, and all buffered lines in this panel are dropped. This cannot be undone.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Action onclick={doClear}>Clear Log File</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>

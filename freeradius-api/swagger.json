@@ -759,6 +759,15 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": ["Radius Log"],
+        "summary": "Clear the RADIUS log file",
+        "description": "Truncates radius.log on the server and drops the buffered backlog, so the panel and all connected streams restart empty. Requires write access to the log file (the API service runs as root).",
+        "responses": {
+          "200": { "description": "Cleared", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "500": { "description": "Could not clear the log file", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
       }
     },
     "/radius/log/stream": {

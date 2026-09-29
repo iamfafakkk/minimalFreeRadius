@@ -172,6 +172,7 @@ func New(cfg *config.Config) http.Handler {
 			r.Use(middleware.Authenticate(cfg))
 			r.Get("/log", radiusLogH.Recent)
 			r.Get("/log/stream", radiusLogH.Stream)
+			r.Delete("/log", radiusLogH.Clear)
 		})
 	})
 
